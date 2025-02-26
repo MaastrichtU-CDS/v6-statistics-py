@@ -1,0 +1,16 @@
+.idea
+__pycache__/
+*.egg-info/
+__pycache__/
+*.json
+.DS_Store
+.ipynb_checkpoints
+venv/
+*.ipynb
+tests/
+analysis/
+papers/
+TODO
+*/local/
+*example.py
+*v6_stats_utils.py

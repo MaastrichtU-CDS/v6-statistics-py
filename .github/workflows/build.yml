@@ -1,0 +1,55 @@
+on:
+  push:
+    # Pattern matched against refs/tags
+    tags:
+      - 'release/v*'
+
+env:
+  REGISTRY: ghcr.io
+
+jobs:
+  build-push-and-tag:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: 3.10
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+
+#      - name: Unit testing with pytest
+#        run: |
+#          python -m pytest
+
+      - name: Extract version
+        run: echo "VERSION_TAG=$(echo ${GITHUB_REF#refs/tags/release/} | sed 's/\///g')" >> $GITHUB_ENV
+        env:
+          GITHUB_REF: ${{ github.ref }}
+
+      - name: Log in to the Container registry
+        # https://github.com/docker/login-action/commits/v3/
+        uses: docker/login-action@343f7c4344506bcbf9b4de18042ae17996df046d
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push Docker image
+        id: docker_build
+        # https://github.com/docker/build-push-action/commits/v5/
+        uses: docker/build-push-action@4a13e500e55cf31b7a5d59a38ab2040ab0f42f56
+        with:
+          context: .
+          push: true
+          tags: ${{ env.REGISTRY }}/${{ github.repository }}:${{ env.VERSION_TAG }}
+
+      - name: Print DigestID
+        run: |
+          echo 'Digest: ${{ steps.docker_build.outputs.digest }}'
