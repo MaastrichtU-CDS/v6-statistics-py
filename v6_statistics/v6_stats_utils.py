@@ -61,6 +61,7 @@ def compute_local_median_sampling_variance(
     n = len(data)
 
     info('Bootstrapping the median')
+    np.random.seed(0)
     for _ in range(iterations):
         # Randomly sample with replacement, which means that a value can be
         # drawn multiple times. We also get a sample with the same size as
