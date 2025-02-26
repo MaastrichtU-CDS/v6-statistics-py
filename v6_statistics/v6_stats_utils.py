@@ -1,9 +1,9 @@
 import numpy as np
 import pandas as pd
 
-from typing import Any, Callable, Dict, List, Tuple, Union
+from typing import Any, Callable, Dict, List, Union
 from vantage6.algorithm.client import AlgorithmClient
-from vantage6.algorithm.tools.util import get_env_var, info, warn, error
+from vantage6.algorithm.tools.util import info
 from vantage6.algorithm.tools.decorators import data
 
 
@@ -29,9 +29,11 @@ def calculate_column_stats(
         # Loop through desired statistics per column
         for statistic in col_stats:
             info(f'Computing {statistic} for {column}')
-            method = f'compute_federated_{statistic}'
+            # method = f'compute_federated_{statistic}'
             column_stats[column] = {
-                statistic: launch_subtask(client, method, ids, **method_kwargs)
+                statistic: compute_federated_median(
+                    client=client, ids=ids, column=column
+                )
             }
     return column_stats
 

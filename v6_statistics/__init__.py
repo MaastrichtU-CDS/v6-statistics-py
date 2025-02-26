@@ -4,6 +4,9 @@ from vantage6.algorithm.tools.util import info
 from vantage6.algorithm.tools.decorators import algorithm_client
 
 from .v6_stats_utils import calculate_column_stats
+from .v6_stats_utils import compute_federated_median
+from .v6_stats_utils import compute_local_median
+from .v6_stats_utils import compute_local_median_sampling_variance
 
 
 @algorithm_client
@@ -35,4 +38,4 @@ def master(
         ids=ids,
         statistics=statistics
     )
-    return column_stats.to_json()
+    return column_stats
