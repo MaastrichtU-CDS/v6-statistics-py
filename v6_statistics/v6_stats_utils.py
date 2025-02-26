@@ -110,6 +110,7 @@ def compute_federated_median(
     medians_i = np.array(local_medians)
 
     info('Collecting local sampling variances of median')
+    # TODO: add number of iterations for bootstrapping as parameter
     method_kwargs = dict(column=column)
     method = 'compute_local_median_sampling_variance'
     local_median_sampling_variances = launch_subtask(
