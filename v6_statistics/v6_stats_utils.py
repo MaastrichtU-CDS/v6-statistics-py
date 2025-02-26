@@ -22,19 +22,23 @@ def calculate_column_stats(
     Returns:
     - Dictionary containing desired statistics per column
     """
+    # Storing methods in a dictionary to easily call them
+    methods = {
+        'median': compute_federated_median,
+    }
+
+    # Computing federated statistics per column
     column_stats = {}
     for column, col_stats in statistics.items():
         info(f'Computing statistics for {column}')
-        method_kwargs = dict(column=column)
-        # Loop through desired statistics per column
         for statistic in col_stats:
             info(f'Computing {statistic} for {column}')
-            # method = f'compute_federated_{statistic}'
             column_stats[column] = {
-                statistic: compute_federated_median(
+                statistic: methods[statistic](
                     client=client, ids=ids, column=column
                 )
             }
+
     return column_stats
 
 
