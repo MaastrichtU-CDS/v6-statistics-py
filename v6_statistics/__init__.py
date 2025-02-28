@@ -10,6 +10,8 @@ from .v6_stats_utils import compute_local_median_sampling_variance
 from .v6_stats_utils import compute_federated_mean
 from .v6_stats_utils import compute_local_sum
 from .v6_stats_utils import compute_local_nrows
+from .v6_stats_utils import compute_federated_counts
+from .v6_stats_utils import compute_local_counts
 
 
 @algorithm_client

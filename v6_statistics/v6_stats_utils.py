@@ -1,3 +1,5 @@
+import json
+
 import numpy as np
 import pandas as pd
 
@@ -24,6 +26,7 @@ def calculate_column_stats(
     """
     # Storing methods in a dictionary to easily call them
     methods = {
+        'counts': compute_federated_counts,
         'mean': compute_federated_mean,
         'median': compute_federated_median
     }
@@ -198,6 +201,52 @@ def compute_federated_mean(
     federated_mean = np.sum(local_sums)/np.sum(local_nrows)
 
     return federated_mean
+
+
+@data(1)
+def compute_local_counts(df: pd.DataFrame, column: str) -> Dict[str, int]:
+    """Compute local counts per category
+
+    Parameters:
+    - df: Input DataFrame
+    - column: Name of the column to compute counts per category
+
+    Returns:
+    - Dictionary with local counts per category
+    """
+    info('Computing local counts per category')
+    return df[column].value_counts(dropna=False).to_json()
+
+
+def compute_federated_counts(
+        client: AlgorithmClient, ids: List[int], column: str
+) -> Dict[str, int]:
+    """Compute federated counts for categorical variables
+
+    Parameters:
+    - client: Vantage6 client object
+    - ids: List of organization IDs
+    - column: Name of the column to compute federated counts
+
+    Returns:
+    - Dictionary with federated counts of categorical variables
+    """
+    info('Collecting local counts per category')
+    method_kwargs = dict(column=column)
+    method = 'compute_local_counts'
+    local_counts = launch_subtask(client, method, ids, **method_kwargs)
+
+    info('Computing federated counts')
+    federated_counts = {}
+    for local_count in local_counts:
+        local_count = json.loads(local_count)
+        for key, value in local_count.items():
+            if key in federated_counts:
+                federated_counts[key] += value
+            else:
+                federated_counts[key] = value
+
+    return federated_counts
 
 
 def launch_subtask(
