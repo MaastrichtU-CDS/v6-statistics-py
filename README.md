@@ -2,8 +2,7 @@
 
 This repository contains an implementation of basic statistics 
 designed for federated learning environments via the vantage6 framework. 
-The following operations are supported: counts, min, max, mean, median and 
-quartiles.
+The following operations are supported: counts, min, max, mean and quantiles.
 
 Follow the instructions in subsequent sections to set up and execute the 
 federated statistics analysis.
@@ -47,7 +46,7 @@ input_ = {
     'method': 'master',
     'kwargs': {
         'statistics': {
-            'columnA': ['minmax', 'mean', 'median', 'quartiles'],
+            'columnA': ['mean', 'minmax', 'quantiles'],
             'columnB': ['counts']
         }, # Define which statistics to compute per column
         'organization_ids': [1, 2, 3] # Example organization IDs

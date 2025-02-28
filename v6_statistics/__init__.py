@@ -4,9 +4,9 @@ from vantage6.algorithm.tools.util import info
 from vantage6.algorithm.tools.decorators import algorithm_client
 
 from .v6_stats_utils import calculate_column_stats
-from .v6_stats_utils import compute_federated_median
-from .v6_stats_utils import compute_local_median
-from .v6_stats_utils import compute_local_median_sampling_variance
+from .v6_stats_utils import compute_federated_quantiles
+from .v6_stats_utils import compute_local_quantile
+from .v6_stats_utils import compute_local_quantile_sampling_variance
 from .v6_stats_utils import compute_federated_mean
 from .v6_stats_utils import compute_local_sum
 from .v6_stats_utils import compute_local_nrows

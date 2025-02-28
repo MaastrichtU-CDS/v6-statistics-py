@@ -29,7 +29,7 @@ def calculate_column_stats(
         'counts': compute_federated_counts,
         'minmax': compute_federated_minmax,
         'mean': compute_federated_mean,
-        'median': compute_federated_median
+        'quantiles': compute_federated_quantiles
     }
 
     # Computing federated statistics per column
@@ -47,102 +47,106 @@ def calculate_column_stats(
 
 
 @data(1)
-def compute_local_median_sampling_variance(
-        df: pd.DataFrame, column: str, iterations: int = 1000
+def compute_local_quantile_sampling_variance(
+        df: pd.DataFrame, column: str, q: float, iterations: int = 1000
 ) -> float:
-    """Estimate local sampling variance of the median
+    """Estimate local sampling variance of the quantile
 
     Parameters:
     - df: Input DataFrame
-    - column: Name of the column to estimate median sampling variance
+    - column: Name of the column to estimate quantile sampling variance
+    - q: Quantile to estimate local sampling variance
     - iterations: Number of times to sample, default is 1000
 
     Returns:
-    - Median sampling variance (float)
+    - Quantile sampling variance (float)
     """
-    medians = []
+    quantiles = []
     data = df[column].dropna().values
     n = len(data)
 
-    info('Bootstrapping the median')
+    info('Bootstrapping the quantile')
     np.random.seed(0)
     for _ in range(iterations):
         # Randomly sample with replacement, which means that a value can be
         # drawn multiple times. We also get a sample with the same size as
         # the original.
         sample = np.random.choice(data, size=n, replace=True)
-        medians.append(np.median(sample))
+        quantiles.append(np.quantile(sample, q))
 
-    info('Estimating local sampling variance of the median')
-    median_variance = np.var(medians)
+    info('Estimating local sampling variance of the quantile')
+    quantile_variance = np.var(quantiles)
 
-    return median_variance
+    return quantile_variance
 
 
 @data(1)
-def compute_local_median(df: pd.DataFrame, column: str) -> float:
-    """Compute local median
+def compute_local_quantile(df: pd.DataFrame, column: str, q: float) -> float:
+    """Compute local quantile
 
     Parameters:
     - df: Input DataFrame
-    - column: Name of the column to compute median
+    - column: Name of the column to compute quantile
+    - q: Quantile to compute
 
     Returns:
-    - Local median (float)
+    - Local quantile (float)
     """
-    info('Computing local median')
-    return df[column].median()
+    info('Computing local quantile')
+    return np.quantile(df[column].dropna().values, q)
 
 
-def compute_federated_median(
+def compute_federated_quantiles(
         client: AlgorithmClient, ids: List[int], column: str
 ) -> Dict[str, float]:
-    """Compute federated median
+    """Compute federated quantiles
 
     Parameters:
     - client: Vantage6 client object
     - ids: List of organization IDs
-    - column: Name of the column to compute federated median
+    - column: Name of the column to compute federated quantiles
 
     Returns:
-    - Dictionary with federated median and its standard error
+    - Dictionary with federated quantiles and their standard errors
     """
-    info('Collecting local medians')
-    method_kwargs = dict(column=column)
-    method = 'compute_local_median'
-    local_medians = launch_subtask(client, method, ids, **method_kwargs)
-    medians_i = np.array(local_medians)
+    quantile = {1: 0.25, 2: 0.50, 3: 0.75}
+    federated_quantiles = {}
+    for i in range(1, 4):
+        info(f'Collecting local quantile Q{i}')
+        method_kwargs = dict(column=column, q=quantile[i])
+        method = 'compute_local_quantile'
+        local_quantiles = launch_subtask(client, method, ids, **method_kwargs)
+        quantiles_i = np.array(local_quantiles)
 
-    info('Collecting local sampling variances of median')
-    # TODO: add number of iterations for bootstrapping as parameter
-    method_kwargs = dict(column=column)
-    method = 'compute_local_median_sampling_variance'
-    local_median_sampling_variances = launch_subtask(
-        client, method, ids, **method_kwargs
-    )
-    variances_i = np.array(local_median_sampling_variances)
+        info(f'Collecting local sampling variances of quantile Q{i}')
+        # TODO: add number of iterations for bootstrapping as parameter
+        method_kwargs = dict(column=column, q=quantile[i])
+        method = 'compute_local_quantile_sampling_variance'
+        local_quantile_sampling_variances = launch_subtask(
+            client, method, ids, **method_kwargs
+        )
+        variances_i = np.array(local_quantile_sampling_variances)
 
-    info('Computing between study heterogeneity')
-    # Using DerSimonian and Laird method to estimate tau2, see equation 8 in
-    # https://doi.org/10.1016/j.cct.2006.04.004
-    k = len(medians_i)
-    omega_i0 = 1./pow(variances_i, 2)
-    median_0 = np.sum(omega_i0*medians_i)/np.sum(omega_i0)
-    tau2_nom = np.sum(omega_i0*pow((medians_i - median_0), 2)) - (k-1)
-    tau2_den = np.sum(omega_i0) - np.sum(pow(omega_i0, 2))/np.sum(omega_i0)
-    tau2 = np.max([0, tau2_nom/tau2_den])
+        info('Computing between study heterogeneity')
+        # Using DerSimonian and Laird method to estimate tau2, see equation 8 in
+        # https://doi.org/10.1016/j.cct.2006.04.004
+        k = len(quantiles_i)
+        omega_i0 = 1./pow(variances_i, 2)
+        quantile_0 = np.sum(omega_i0*quantiles_i)/np.sum(omega_i0)
+        tau2_nom = np.sum(omega_i0*pow((quantiles_i - quantile_0), 2)) - (k-1)
+        tau2_den = np.sum(omega_i0) - np.sum(pow(omega_i0, 2))/np.sum(omega_i0)
+        tau2 = np.max([0, tau2_nom/tau2_den])
 
-    info('Computing federated median and its standard error')
-    # Using approach from McGrath et al. (2019), section 2,
-    # see: https://doi.org/10.1002/sim.8013
-    omega_i = 1./(variances_i + tau2)
-    federated_median = np.sum(medians_i*omega_i)/np.sum(omega_i)
-    federated_median_std_err = np.sqrt(1./np.sum(omega_i))
+        info(f'Computing federated quantile Q{i} and its standard error')
+        # Using approach from McGrath et al. (2019), section 2,
+        # see: https://doi.org/10.1002/sim.8013
+        omega_i = 1./(variances_i + tau2)
+        federated_quantile = np.sum(quantiles_i*omega_i)/np.sum(omega_i)
+        federated_quantile_std_err = np.sqrt(1./np.sum(omega_i))
+        federated_quantiles[f'Q{i}'] = federated_quantile
+        federated_quantiles[f'Q{i}_std_err'] = federated_quantile_std_err
 
-    return {
-        'value': federated_median,
-        'std_err': federated_median_std_err
-    }
+    return federated_quantiles
 
 
 @data(1)
