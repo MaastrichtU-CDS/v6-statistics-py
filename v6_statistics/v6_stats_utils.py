@@ -11,8 +11,8 @@ def calculate_column_stats(
         client: AlgorithmClient,
         ids: List[int],
         statistics: Dict[str, List[str]]
-) -> Dict[str, Union[str, List[str]]]:
-    """Calculate desired statistics per column.
+) -> Dict[str, Dict[str, Union[int, float, Dict[str, float]]]]:
+    """Calculate desired statistics per column
 
     Parameters:
     - client: Vantage6 client object
@@ -24,20 +24,20 @@ def calculate_column_stats(
     """
     # Storing methods in a dictionary to easily call them
     methods = {
-        'median': compute_federated_median,
+        'mean': compute_federated_mean,
+        'median': compute_federated_median
     }
 
     # Computing federated statistics per column
     column_stats = {}
     for column, col_stats in statistics.items():
         info(f'Computing statistics for {column}')
+        column_stats[column] = {}
         for statistic in col_stats:
             info(f'Computing {statistic} for {column}')
-            column_stats[column] = {
-                statistic: methods[statistic](
-                    client=client, ids=ids, column=column
-                )
-            }
+            column_stats[column][statistic] = methods[statistic](
+                client=client, ids=ids, column=column
+            )
 
     return column_stats
 
@@ -139,6 +139,65 @@ def compute_federated_median(
         'value': federated_median,
         'std_err': federated_median_std_err
     }
+
+
+@data(1)
+def compute_local_sum(df: pd.DataFrame, column: str) -> Union[float, int]:
+    """Compute local sum
+
+    Parameters:
+    - df: Input DataFrame
+    - column: Name of the column to compute sum
+
+    Returns:
+    - Local sum (float or int)
+    """
+    info('Computing local sum')
+    return df[column].sum()
+
+
+@data(1)
+def compute_local_nrows(df: pd.DataFrame, column: str) -> int:
+    """Compute local number of rows
+
+    Parameters:
+    - df: Input DataFrame
+    - column: Name of the column to compute number of rows
+
+    Returns:
+    - Local number of rows (int)
+    """
+    info('Computing local number of rows')
+    return int(df[column].dropna().count())
+
+
+def compute_federated_mean(
+        client: AlgorithmClient, ids: List[int], column: str
+) -> float:
+    """Compute federated mean
+
+    Parameters:
+    - client: Vantage6 client object
+    - ids: List of organization IDs
+    - column: Name of the column to compute federated mean
+
+    Returns:
+    - Federated mean (float)
+    """
+    info('Collecting local sum')
+    method_kwargs = dict(column=column)
+    method = 'compute_local_sum'
+    local_sums = launch_subtask(client, method, ids, **method_kwargs)
+
+    info('Collecting local number of rows')
+    method_kwargs = dict(column=column)
+    method = 'compute_local_nrows'
+    local_nrows = launch_subtask(client, method, ids, **method_kwargs)
+
+    info('Computing federated mean')
+    federated_mean = np.sum(local_sums)/np.sum(local_nrows)
+
+    return federated_mean
 
 
 def launch_subtask(
