@@ -3,7 +3,7 @@ import json
 import numpy as np
 import pandas as pd
 
-from typing import Any, Callable, Dict, List, Union
+from typing import Any, Callable, Dict, List, Union, Tuple
 from vantage6.algorithm.client import AlgorithmClient
 from vantage6.algorithm.tools.util import info
 from vantage6.algorithm.tools.decorators import data
@@ -27,6 +27,7 @@ def calculate_column_stats(
     # Storing methods in a dictionary to easily call them
     methods = {
         'counts': compute_federated_counts,
+        'minmax': compute_federated_minmax,
         'mean': compute_federated_mean,
         'median': compute_federated_median
     }
@@ -247,6 +248,49 @@ def compute_federated_counts(
                 federated_counts[key] = value
 
     return federated_counts
+
+
+@data(1)
+def compute_local_minmax(df: pd.DataFrame, column: str) -> Tuple[float, float]:
+    """Compute local minimum and maximum
+
+    Parameters:
+    - df: Input DataFrame
+    - column: Name of the column to compute minimum and maximum
+
+    Returns:
+    - Tuple with minimum and maximum values
+    """
+    info('Computing local minimum and maximum values')
+    return df[column].dropna().min(), df[column].dropna().max()
+
+
+def compute_federated_minmax(
+        client: AlgorithmClient, ids: List[int], column: str
+) -> Dict[str, float]:
+    """Compute federated minimum and maximum values
+
+    Parameters:
+    - client: Vantage6 client object
+    - ids: List of organization IDs
+    - column: Name of the column to compute federated minimum and maximum
+
+    Returns:
+    - Dictionary with federated minimum and maximum values
+    """
+    info('Collecting local minimum and maximum values')
+    method_kwargs = dict(column=column)
+    method = 'compute_local_minmax'
+    local_minmax = launch_subtask(client, method, ids, **method_kwargs)
+
+    info('Computing federated minimum and maximum values')
+    federated_min = np.min(local_minmax)
+    federated_max = np.max(local_minmax)
+
+    return {
+        'min': federated_min,
+        'max': federated_max
+    }
 
 
 def launch_subtask(

@@ -12,6 +12,8 @@ from .v6_stats_utils import compute_local_sum
 from .v6_stats_utils import compute_local_nrows
 from .v6_stats_utils import compute_federated_counts
 from .v6_stats_utils import compute_local_counts
+from .v6_stats_utils import compute_federated_minmax
+from .v6_stats_utils import compute_local_minmax
 
 
 @algorithm_client
