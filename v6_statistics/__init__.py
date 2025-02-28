@@ -21,7 +21,7 @@ def master(
     client: AlgorithmClient,
     statistics: Dict[str, List[str]],
     organization_ids: List[int] = None
-) -> Dict[str, Dict[str, Union[int, float, Dict[str, float]]]]:
+) -> Dict[str, Dict[str, Union[int, float, Dict[str, Union[int, float]]]]]:
     """Compute simple statistics in a federated environment
 
     Parameters:

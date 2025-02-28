@@ -13,7 +13,7 @@ def calculate_column_stats(
         client: AlgorithmClient,
         ids: List[int],
         statistics: Dict[str, List[str]]
-) -> Dict[str, Dict[str, Union[int, float, Dict[str, float]]]]:
+) -> Dict[str, Dict[str, Union[int, float, Dict[str, Union[int, float]]]]]:
     """Calculate desired statistics per column
 
     Parameters:
@@ -251,7 +251,9 @@ def compute_federated_counts(
 
 
 @data(1)
-def compute_local_minmax(df: pd.DataFrame, column: str) -> Tuple[float, float]:
+def compute_local_minmax(
+        df: pd.DataFrame, column: str
+) -> Tuple[Union[int, float], Union[int, float]]:
     """Compute local minimum and maximum
 
     Parameters:
@@ -267,7 +269,7 @@ def compute_local_minmax(df: pd.DataFrame, column: str) -> Tuple[float, float]:
 
 def compute_federated_minmax(
         client: AlgorithmClient, ids: List[int], column: str
-) -> Dict[str, float]:
+) -> Dict[str, Union[int, float]]:
     """Compute federated minimum and maximum values
 
     Parameters:
