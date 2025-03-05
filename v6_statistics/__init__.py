@@ -10,6 +10,7 @@ from .v6_stats_utils import compute_local_quantile_sampling_variance
 from .v6_stats_utils import compute_federated_mean
 from .v6_stats_utils import compute_local_sum
 from .v6_stats_utils import compute_local_nrows
+from .v6_stats_utils import compute_local_sum_errors2
 from .v6_stats_utils import compute_federated_counts
 from .v6_stats_utils import compute_local_counts
 from .v6_stats_utils import compute_federated_minmax
@@ -22,7 +23,7 @@ def master(
     client: AlgorithmClient,
     statistics: Dict[str, List[str]],
     organization_ids: List[int] = None
-) -> Dict[str, Dict[str, Union[int, float, Dict[str, Union[int, float]]]]]:
+) -> Dict[str, Dict[str, Union[int, Dict[str, Union[int, float]]]]]:
     """Compute simple statistics in a federated environment
 
     Parameters:

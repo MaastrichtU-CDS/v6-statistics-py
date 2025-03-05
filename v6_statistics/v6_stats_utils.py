@@ -13,7 +13,7 @@ def calculate_column_stats(
         client: AlgorithmClient,
         ids: List[int],
         statistics: Dict[str, List[str]]
-) -> Dict[str, Dict[str, Union[int, float, Dict[str, Union[int, float]]]]]:
+) -> Dict[str, Dict[str, Union[int, Dict[str, Union[int, float]]]]]:
     """Calculate desired statistics per column
 
     Parameters:
@@ -187,9 +187,27 @@ def compute_local_nrows(
     return int(nrows)
 
 
+@data(1)
+def compute_local_sum_errors2(
+        df: pd.DataFrame, column: str, mean: float
+) -> Union[float, int]:
+    """Compute local sum of squared errors
+
+    Parameters:
+    - df: Input DataFrame
+    - column: Name of the column to compute sum of squared errors
+    - mean: Mean to compute local sum of squared errors
+
+    Returns:
+    - Local sum of squared errors (float or int)
+    """
+    info('Computing local sum of squared errors')
+    return np.sum((df[column].dropna().values - mean)**2)
+
+
 def compute_federated_mean(
         client: AlgorithmClient, ids: List[int], column: str
-) -> float:
+) -> Dict[str, float]:
     """Compute federated mean
 
     Parameters:
@@ -198,7 +216,7 @@ def compute_federated_mean(
     - column: Name of the column to compute federated mean
 
     Returns:
-    - Federated mean (float)
+    - Dictionary with federated mean and its standard deviation
     """
     info('Collecting local sum')
     method_kwargs = dict(column=column)
@@ -213,7 +231,18 @@ def compute_federated_mean(
     info('Computing federated mean')
     federated_mean = np.sum(local_sums)/np.sum(local_nrows)
 
-    return federated_mean
+    info('Collecting local sum of squared errors')
+    method_kwargs = dict(column=column, mean=federated_mean)
+    method = 'compute_local_sum_errors2'
+    local_sum_errors2 = launch_subtask(client, method, ids, **method_kwargs)
+
+    info('Computing federated standard deviation')
+    federated_std = np.sqrt(np.sum(local_sum_errors2)/np.sum(local_nrows))
+
+    return {
+        'mean': federated_mean,
+        'std': federated_std
+    }
 
 
 def compute_federated_nrows(
