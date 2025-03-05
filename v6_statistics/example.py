@@ -32,8 +32,8 @@ average_task = client.task.create(
         'method': 'master',
         'kwargs': {
             'statistics': {
-                'columnA': ['mean', 'minmax', 'quantiles'],
-                'columnB': ['counts']
+                'columnA': ['mean', 'minmax', 'quantiles', 'nrows'],
+                'columnB': ['counts', 'nrows']
             }
         }
     },

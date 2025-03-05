@@ -46,8 +46,8 @@ input_ = {
     'method': 'master',
     'kwargs': {
         'statistics': {
-            'columnA': ['mean', 'minmax', 'quantiles'],
-            'columnB': ['counts']
+            'columnA': ['mean', 'minmax', 'quantiles', 'nrows'],
+            'columnB': ['counts', 'nrows']
         }, # Define which statistics to compute per column
         'organization_ids': [1, 2, 3] # Example organization IDs
     }
