@@ -34,7 +34,8 @@ average_task = client.task.create(
             'statistics': {
                 'columnA': ['mean', 'minmax', 'quantiles', 'nrows'],
                 'columnB': ['counts', 'nrows']
-            }
+            },
+            'filter_value': None
         }
     },
     organizations=[org_ids[0]]

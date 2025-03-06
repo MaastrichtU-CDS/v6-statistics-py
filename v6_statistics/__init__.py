@@ -22,6 +22,7 @@ from .v6_stats_utils import compute_federated_nrows
 def master(
     client: AlgorithmClient,
     statistics: Dict[str, List[str]],
+    filter_value: str = None,
     organization_ids: List[int] = None
 ) -> Dict[str, Dict[str, Union[int, Dict[str, Union[int, float]]]]]:
     """Compute simple statistics in a federated environment
@@ -29,6 +30,7 @@ def master(
     Parameters:
     - client: Vantage6 client object
     - statistics: Dictionary with columns and statistics to compute per column
+    - filter_value: Value to filter on a column set on node configuration
     - organization_ids: Organization IDs to include, default includes all
 
     Returns:
@@ -42,9 +44,12 @@ def master(
         ids = organization_ids
 
     info(f'Sending task to organizations {ids}')
+    # TODO: filtering should be done as a pre-processing step instead of
+    #  repeating it with every function...
     column_stats = calculate_column_stats(
         client=client,
         ids=ids,
-        statistics=statistics
+        statistics=statistics,
+        filter_value=filter_value
     )
     return column_stats
