@@ -81,7 +81,7 @@ def compute_local_stats(
         # 'minmax': compute_federated_minmax,
         # 'mean': compute_federated_mean,
         # 'quantiles': compute_federated_quantiles,
-        # 'nrows': compute_federated_nrows
+        'nrows': compute_local_nrows
     }
 
     # Computing local statistics per column
@@ -216,21 +216,19 @@ def compute_local_sum(df: pd.DataFrame, column: str) -> Union[float, int]:
     return df[column].sum()
 
 
-@data(1)
 def compute_local_nrows(
-        df: pd.DataFrame, column: str, dropna: bool = True
+        df: pd.DataFrame, column: str, dropna: bool = False
 ) -> int:
     """Compute local number of rows
 
     Parameters:
     - df: Input DataFrame
     - column: Name of the column to compute number of rows
-    - dropna: Whether to drop nan rows, defaults to True
+    - dropna: Whether to drop nan rows, defaults to False
 
     Returns:
     - Local number of rows (int)
     """
-    info('Computing local number of rows')
     if dropna:
         nrows = len(df[column].dropna())
     else:
@@ -296,31 +294,16 @@ def compute_federated_mean(
     }
 
 
-def compute_federated_nrows(
-        client: AlgorithmClient, ids: List[int], column: str,
-        dropna: bool = False
-) -> int:
+def compute_federated_nrows(local_nrows: List[int]) -> int:
     """Compute federated number of rows
 
     Parameters:
-    - client: Vantage6 client object
-    - ids: List of organization IDs
-    - column: Name of the column to compute federated mean
-    - dropna: Whether to drop nan rows, defaults to False
+    - local_nrows: List of local number of rows
 
     Returns:
     - Federated number of rows (int)
     """
-    info('Collecting local number of rows')
-    # TODO: add dropna as task input
-    method_kwargs = dict(column=column, dropna=dropna)
-    method = 'compute_local_nrows'
-    local_nrows = launch_subtask(client, method, ids, **method_kwargs)
-
-    info('Computing federated number of rows')
-    federated_nrows = int(np.sum(local_nrows))
-
-    return federated_nrows
+    return int(np.sum(local_nrows))
 
 
 def compute_local_counts(df: pd.DataFrame, column: str) -> Dict[str, int]:
@@ -333,7 +316,6 @@ def compute_local_counts(df: pd.DataFrame, column: str) -> Dict[str, int]:
     Returns:
     - Dictionary with local counts per category
     """
-    info('Computing local counts per category')
     return df[column].value_counts(dropna=False).to_json()
 
 

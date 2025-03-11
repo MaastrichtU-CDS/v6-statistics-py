@@ -10,11 +10,9 @@ from .v6_stats_utils import compute_local_quantile
 from .v6_stats_utils import compute_local_quantile_sampling_variance
 from .v6_stats_utils import compute_federated_mean
 from .v6_stats_utils import compute_local_sum
-from .v6_stats_utils import compute_local_nrows
 from .v6_stats_utils import compute_local_sum_errors2
 from .v6_stats_utils import compute_federated_minmax
 from .v6_stats_utils import compute_local_minmax
-from .v6_stats_utils import compute_federated_nrows
 
 
 @algorithm_client
