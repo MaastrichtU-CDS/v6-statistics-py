@@ -78,7 +78,7 @@ def compute_local_stats(
     # Storing methods in a dictionary to easily call them
     methods = {
         'counts': compute_local_counts,
-        # 'minmax': compute_federated_minmax,
+        'minmax': compute_local_minmax,
         # 'mean': compute_federated_mean,
         # 'quantiles': compute_federated_quantiles,
         'nrows': compute_local_nrows
@@ -339,7 +339,6 @@ def compute_federated_counts(local_counts: List[str]) -> Dict[str, int]:
     return federated_counts
 
 
-@data(1)
 def compute_local_minmax(
         df: pd.DataFrame, column: str
 ) -> Tuple[Union[int, float], Union[int, float]]:
@@ -352,35 +351,23 @@ def compute_local_minmax(
     Returns:
     - Tuple with minimum and maximum values
     """
-    info('Computing local minimum and maximum values')
     return df[column].dropna().min(), df[column].dropna().max()
 
 
 def compute_federated_minmax(
-        client: AlgorithmClient, ids: List[int], column: str
+       local_minmax: List[Tuple[Union[int, float], Union[int, float]]]
 ) -> Dict[str, Union[int, float]]:
     """Compute federated minimum and maximum values
 
     Parameters:
-    - client: Vantage6 client object
-    - ids: List of organization IDs
-    - column: Name of the column to compute federated minimum and maximum
+    - local_minmax: List of tuples of minimum and maximum values for a column
 
     Returns:
     - Dictionary with federated minimum and maximum values
     """
-    info('Collecting local minimum and maximum values')
-    method_kwargs = dict(column=column)
-    method = 'compute_local_minmax'
-    local_minmax = launch_subtask(client, method, ids, **method_kwargs)
-
-    info('Computing federated minimum and maximum values')
-    federated_min = np.min(local_minmax)
-    federated_max = np.max(local_minmax)
-
     return {
-        'min': federated_min,
-        'max': federated_max
+        'min': np.min(local_minmax),
+        'max': np.max(local_minmax)
     }
 
 
