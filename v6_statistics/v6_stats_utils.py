@@ -80,7 +80,7 @@ def compute_local_stats(
         'counts': compute_local_counts,
         'minmax': compute_local_minmax,
         # 'mean': compute_federated_mean,
-        # 'quantiles': compute_federated_quantiles,
+        'quantiles': compute_local_quantiles,
         'nrows': compute_local_nrows
     }
 
@@ -98,7 +98,6 @@ def compute_local_stats(
     return local_stats
 
 
-@data(1)
 def compute_local_quantile_sampling_variance(
         df: pd.DataFrame, column: str, q: float, iterations: int = 1000
 ) -> float:
@@ -132,52 +131,46 @@ def compute_local_quantile_sampling_variance(
     return quantile_variance
 
 
-@data(1)
-def compute_local_quantile(df: pd.DataFrame, column: str, q: float) -> float:
-    """Compute local quantile
+def compute_local_quantiles(df: pd.DataFrame, column: str) -> Dict[str, float]:
+    """Compute local quantiles
 
     Parameters:
     - df: Input DataFrame
-    - column: Name of the column to compute quantile
-    - q: Quantile to compute
+    - column: Name of the column to compute quantiles
 
     Returns:
-    - Local quantile (float)
+    - Dictionary with local quantiles and their sampling variances
     """
-    info('Computing local quantile')
-    return np.quantile(df[column].dropna().values, q)
+    q = {1: 0.25, 2: 0.50, 3: 0.75}
+    quantiles = {}
+    for i in range(1, 4):
+        info(f'Collecting local quantile Q{i}')
+        quantiles[f'Q{i}'] = np.quantile(df[column].dropna().values, q[i])
+
+        info(f'Collecting local sampling variances of quantile Q{i}')
+        # TODO: add number of iterations for bootstrapping as parameter
+        quantiles[f'variance_Q{i}'] = compute_local_quantile_sampling_variance(
+            df, column, q[i]
+        )
+    return quantiles
 
 
 def compute_federated_quantiles(
-        client: AlgorithmClient, ids: List[int], column: str
+        local_quantiles: List[Dict[str, float]]
 ) -> Dict[str, float]:
     """Compute federated quantiles
 
     Parameters:
-    - client: Vantage6 client object
-    - ids: List of organization IDs
-    - column: Name of the column to compute federated quantiles
+    - local_quantiles: List with local quantiles and their sampling variances
 
     Returns:
     - Dictionary with federated quantiles and their standard errors
     """
-    quantile = {1: 0.25, 2: 0.50, 3: 0.75}
     federated_quantiles = {}
     for i in range(1, 4):
-        info(f'Collecting local quantile Q{i}')
-        method_kwargs = dict(column=column, q=quantile[i])
-        method = 'compute_local_quantile'
-        local_quantiles = launch_subtask(client, method, ids, **method_kwargs)
-        quantiles_i = np.array(local_quantiles)
-
-        info(f'Collecting local sampling variances of quantile Q{i}')
-        # TODO: add number of iterations for bootstrapping as parameter
-        method_kwargs = dict(column=column, q=quantile[i])
-        method = 'compute_local_quantile_sampling_variance'
-        local_quantile_sampling_variances = launch_subtask(
-            client, method, ids, **method_kwargs
-        )
-        variances_i = np.array(local_quantile_sampling_variances)
+        info(f'Unwrapping quantiles Q{i} and their sampling variances')
+        quantiles_i = np.array([q[f'Q{i}'] for q in local_quantiles])
+        variances_i = np.array([q[f'variance_Q{i}'] for q in local_quantiles])
 
         info('Computing between study heterogeneity')
         # Using DerSimonian and Laird method to estimate tau2, see equation 8 in
