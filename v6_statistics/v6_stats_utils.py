@@ -79,7 +79,7 @@ def compute_local_stats(
     methods = {
         'counts': compute_local_counts,
         'minmax': compute_local_minmax,
-        # 'mean': compute_federated_mean,
+        'mean': compute_local_means,
         'quantiles': compute_local_quantiles,
         'nrows': compute_local_nrows
     }
@@ -194,7 +194,6 @@ def compute_federated_quantiles(
     return federated_quantiles
 
 
-@data(1)
 def compute_local_sum(df: pd.DataFrame, column: str) -> Union[float, int]:
     """Compute local sum
 
@@ -229,7 +228,6 @@ def compute_local_nrows(
     return int(nrows)
 
 
-@data(1)
 def compute_local_sum_errors2(
         df: pd.DataFrame, column: str, mean: float
 ) -> Union[float, int]:
@@ -247,44 +245,52 @@ def compute_local_sum_errors2(
     return np.sum((df[column].dropna().values - mean)**2)
 
 
-def compute_federated_mean(
-        client: AlgorithmClient, ids: List[int], column: str
-) -> Dict[str, float]:
+def compute_local_means(
+        df: pd.DataFrame, column: str
+) -> Dict[str, Union[float, int]]:
+    """Compute local sum and number of non-NA rows for a certain column
+
+    Parameters:
+    - df: Input DataFrame
+    - column: Name of the column to compute sum and nrows
+
+    Returns:
+    - Dictionary of local sum and number of non-NA rows for a certain column
+    """
+    return {
+        'sum': compute_local_sum(df, column),
+        'nrows': compute_local_nrows(df, column, True)
+    }
+
+
+def compute_federated_mean(local_means: List[Dict[str, float]]) -> float:
     """Compute federated mean
 
     Parameters:
-    - client: Vantage6 client object
-    - ids: List of organization IDs
-    - column: Name of the column to compute federated mean
+    - local_means: List with local sums and nrows per column
 
     Returns:
-    - Dictionary with federated mean and its standard deviation
+    - Federated mean (float)
     """
-    info('Collecting local sum')
-    method_kwargs = dict(column=column)
-    method = 'compute_local_sum'
-    local_sums = launch_subtask(client, method, ids, **method_kwargs)
-
-    info('Collecting local number of rows')
-    method_kwargs = dict(column=column)
-    method = 'compute_local_nrows'
-    local_nrows = launch_subtask(client, method, ids, **method_kwargs)
-
-    info('Computing federated mean')
+    local_sums = [local_mean['sum'] for local_mean in local_means]
+    local_nrows = [local_mean['nrows'] for local_mean in local_means]
     federated_mean = np.sum(local_sums)/np.sum(local_nrows)
+    return federated_mean
 
-    info('Collecting local sum of squared errors')
-    method_kwargs = dict(column=column, mean=federated_mean)
-    method = 'compute_local_sum_errors2'
-    local_sum_errors2 = launch_subtask(client, method, ids, **method_kwargs)
 
-    info('Computing federated standard deviation')
+def compute_federated_std(local_stds: List[Dict[str, float]]) -> float:
+    """Compute federated standard deviation
+
+    Parameters:
+    - local_stds: List with local sums of squared errors and nrows per column
+
+    Returns:
+    - Federated standard deviation (float)
+    """
+    local_sum_errors2 = [local_std['sum_errors2'] for local_std in local_stds]
+    local_nrows = [local_std['nrows'] for local_std in local_stds]
     federated_std = np.sqrt(np.sum(local_sum_errors2)/np.sum(local_nrows))
-
-    return {
-        'mean': federated_mean,
-        'std': federated_std
-    }
+    return federated_std
 
 
 def compute_federated_nrows(local_nrows: List[int]) -> int:
