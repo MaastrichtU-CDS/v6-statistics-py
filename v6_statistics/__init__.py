@@ -5,6 +5,7 @@ from vantage6.algorithm.tools.decorators import algorithm_client
 
 from .v6_stats_utils import calculate_column_stats
 from .v6_stats_utils import compute_local_stats
+from .v6_stats_utils import compute_local_stds
 
 
 @algorithm_client

@@ -30,7 +30,6 @@ def calculate_column_stats(
     method_kwargs = dict(statistics=statistics, filter_value=filter_value)
     method = 'compute_local_stats'
     local_stats = launch_subtask(client, method, ids, **method_kwargs)
-    info(f'Local stats: {local_stats}')
 
     # Storing methods in a dictionary to easily call them
     methods = {
@@ -52,6 +51,21 @@ def calculate_column_stats(
                 local_stat[column][statistic] for local_stat in local_stats
             ]
             column_stats[column][statistic] = methods[statistic](input)
+
+    # Computing local standard deviations
+    method_kwargs = dict(
+        column_stats=column_stats,
+        filter_value=filter_value
+    )
+    method = 'compute_local_stds'
+    local_stds = launch_subtask(client, method, ids, **method_kwargs)
+
+    # Computing federated standard deviations
+    for column, col_stats in statistics.items():
+        if 'mean' in col_stats:
+            info(f'Computing federated standard deviation for {column}')
+            stds = [local_std[column] for local_std in local_stds]
+            column_stats[column]['mean']['std'] = compute_federated_std(stds)
 
     return column_stats
 
@@ -204,7 +218,6 @@ def compute_local_sum(df: pd.DataFrame, column: str) -> Union[float, int]:
     Returns:
     - Local sum (float or int)
     """
-    info('Computing local sum')
     return df[column].sum()
 
 
@@ -241,7 +254,6 @@ def compute_local_sum_errors2(
     Returns:
     - Local sum of squared errors (float or int)
     """
-    info('Computing local sum of squared errors')
     return np.sum((df[column].dropna().values - mean)**2)
 
 
@@ -262,8 +274,43 @@ def compute_local_means(
         'nrows': compute_local_nrows(df, column, True)
     }
 
+@data(1)
+def compute_local_stds(
+        df: pd.DataFrame,
+        column_stats: Dict[str, Union[int, Dict[str, Union[int, float]]]],
+        filter_value: str = None,
+) -> Dict[str, Union[float, int]]:
+    """Compute local sum of squared errors and number of nonNA rows for a column
 
-def compute_federated_mean(local_means: List[Dict[str, float]]) -> float:
+    Parameters:
+    - df: Input DataFrame
+    - column_stats: Dictionary with federated column statistics
+    - filter_value: Value to filter on a column set on node configuration
+
+    Returns:
+    - Dictionary of sum of squared errors and number of non-NA rows
+    """
+    # Filtering data
+    if filter_value:
+        df = filter_df(df, filter_value)
+
+    # Computing local standard deviations per column
+    local_stds = {}
+    for column, statistics in column_stats.items():
+        if 'mean' in statistics.keys():
+            info(f'Computing standard deviation for {column}')
+            mean = statistics['mean']['mean']
+            local_stds[column] = {
+                'sum_errors2': compute_local_sum_errors2(df, column, mean),
+                'nrows': compute_local_nrows(df, column, True)
+            }
+
+    return local_stds
+
+
+def compute_federated_mean(
+        local_means: List[Dict[str, float]]
+) -> Dict[str, float]:
     """Compute federated mean
 
     Parameters:
@@ -275,7 +322,9 @@ def compute_federated_mean(local_means: List[Dict[str, float]]) -> float:
     local_sums = [local_mean['sum'] for local_mean in local_means]
     local_nrows = [local_mean['nrows'] for local_mean in local_means]
     federated_mean = np.sum(local_sums)/np.sum(local_nrows)
-    return federated_mean
+    return {
+        'mean': federated_mean
+    }
 
 
 def compute_federated_std(local_stds: List[Dict[str, float]]) -> float:
