@@ -1,6 +1,8 @@
 on:
   push:
     # Pattern matched against refs/tags
+    branches:
+      - main
     tags:
       - 'release/v*'
 
