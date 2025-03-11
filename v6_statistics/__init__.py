@@ -4,6 +4,7 @@ from vantage6.algorithm.tools.util import info
 from vantage6.algorithm.tools.decorators import algorithm_client
 
 from .v6_stats_utils import calculate_column_stats
+from .v6_stats_utils import compute_local_stats
 from .v6_stats_utils import compute_federated_quantiles
 from .v6_stats_utils import compute_local_quantile
 from .v6_stats_utils import compute_local_quantile_sampling_variance
@@ -11,8 +12,6 @@ from .v6_stats_utils import compute_federated_mean
 from .v6_stats_utils import compute_local_sum
 from .v6_stats_utils import compute_local_nrows
 from .v6_stats_utils import compute_local_sum_errors2
-from .v6_stats_utils import compute_federated_counts
-from .v6_stats_utils import compute_local_counts
 from .v6_stats_utils import compute_federated_minmax
 from .v6_stats_utils import compute_local_minmax
 from .v6_stats_utils import compute_federated_nrows
@@ -44,8 +43,6 @@ def master(
         ids = organization_ids
 
     info(f'Sending task to organizations {ids}')
-    # TODO: filtering should be done as a pre-processing step instead of
-    #  repeating it with every function...
     column_stats = calculate_column_stats(
         client=client,
         ids=ids,

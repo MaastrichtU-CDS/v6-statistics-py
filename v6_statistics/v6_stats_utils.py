@@ -26,6 +26,12 @@ def calculate_column_stats(
     Returns:
     - Dictionary containing desired statistics per column
     """
+    # Computing local statistics
+    method_kwargs = dict(statistics=statistics, filter_value=filter_value)
+    method = 'compute_local_stats'
+    local_stats = launch_subtask(client, method, ids, **method_kwargs)
+    info(f'Local stats: {local_stats}')
+
     # Storing methods in a dictionary to easily call them
     methods = {
         'counts': compute_federated_counts,
@@ -38,21 +44,63 @@ def calculate_column_stats(
     # Computing federated statistics per column
     column_stats = {}
     for column, col_stats in statistics.items():
-        info(f'Computing statistics for {column}')
+        info(f'Computing federated statistics for {column}')
         column_stats[column] = {}
         for statistic in col_stats:
-            info(f'Computing {statistic} for {column}')
-            column_stats[column][statistic] = methods[statistic](
-                client=client, ids=ids, column=column, filter_value=filter_value
-            )
+            info(f'Computing federated {statistic} for {column}')
+            input = [
+                local_stat[column][statistic] for local_stat in local_stats
+            ]
+            column_stats[column][statistic] = methods[statistic](input)
 
     return column_stats
 
 
 @data(1)
+def compute_local_stats(
+        df: pd.DataFrame, statistics: Dict[str, List[str]],
+        filter_value: str = None
+) -> Dict[str, Dict[str, Union[int, str]]]:
+    """Compute local statistics per column
+
+    Parameters:
+    - df: Input DataFrame
+    - statistics: Dictionary with columns and statistics to compute per column
+    - filter_value: Value to filter on a column set on node configuration
+
+    Returns:
+    - Dictionary containing desired statistics per column
+    """
+    # Filtering data
+    if filter_value:
+        df = filter_df(df, filter_value)
+
+    # Storing methods in a dictionary to easily call them
+    methods = {
+        'counts': compute_local_counts,
+        # 'minmax': compute_federated_minmax,
+        # 'mean': compute_federated_mean,
+        # 'quantiles': compute_federated_quantiles,
+        # 'nrows': compute_federated_nrows
+    }
+
+    # Computing local statistics per column
+    local_stats = {}
+    for column, col_stats in statistics.items():
+        info(f'Computing statistics for {column}')
+        local_stats[column] = {}
+        for statistic in col_stats:
+            info(f'Computing {statistic} for {column}')
+            local_stats[column][statistic] = methods[statistic](
+                df=df, column=column
+            )
+
+    return local_stats
+
+
+@data(1)
 def compute_local_quantile_sampling_variance(
-        df: pd.DataFrame, column: str, q: float, filter_value: str = None,
-        iterations: int = 1000
+        df: pd.DataFrame, column: str, q: float, iterations: int = 1000
 ) -> float:
     """Estimate local sampling variance of the quantile
 
@@ -60,15 +108,11 @@ def compute_local_quantile_sampling_variance(
     - df: Input DataFrame
     - column: Name of the column to estimate quantile sampling variance
     - q: Quantile to estimate local sampling variance
-    - filter_value: Value to filter on a column set on node configuration
     - iterations: Number of times to sample, default is 1000
 
     Returns:
     - Quantile sampling variance (float)
     """
-    if filter_value:
-        df = filter_df(df, filter_value)
-
     quantiles = []
     data = df[column].dropna().values
     n = len(data)
@@ -89,30 +133,23 @@ def compute_local_quantile_sampling_variance(
 
 
 @data(1)
-def compute_local_quantile(
-        df: pd.DataFrame, column: str, q: float, filter_value: str = None
-) -> float:
+def compute_local_quantile(df: pd.DataFrame, column: str, q: float) -> float:
     """Compute local quantile
 
     Parameters:
     - df: Input DataFrame
     - column: Name of the column to compute quantile
     - q: Quantile to compute
-    - filter_value: Value to filter on a column set on node configuration
 
     Returns:
     - Local quantile (float)
     """
-    if filter_value:
-        df = filter_df(df, filter_value)
-
     info('Computing local quantile')
     return np.quantile(df[column].dropna().values, q)
 
 
 def compute_federated_quantiles(
-        client: AlgorithmClient, ids: List[int], column: str,
-        filter_value: str = None
+        client: AlgorithmClient, ids: List[int], column: str
 ) -> Dict[str, float]:
     """Compute federated quantiles
 
@@ -120,7 +157,6 @@ def compute_federated_quantiles(
     - client: Vantage6 client object
     - ids: List of organization IDs
     - column: Name of the column to compute federated quantiles
-    - filter_value: Value to filter on a column set on node configuration
 
     Returns:
     - Dictionary with federated quantiles and their standard errors
@@ -129,18 +165,14 @@ def compute_federated_quantiles(
     federated_quantiles = {}
     for i in range(1, 4):
         info(f'Collecting local quantile Q{i}')
-        method_kwargs = dict(
-            column=column, q=quantile[i], filter_value=filter_value
-        )
+        method_kwargs = dict(column=column, q=quantile[i])
         method = 'compute_local_quantile'
         local_quantiles = launch_subtask(client, method, ids, **method_kwargs)
         quantiles_i = np.array(local_quantiles)
 
         info(f'Collecting local sampling variances of quantile Q{i}')
         # TODO: add number of iterations for bootstrapping as parameter
-        method_kwargs = dict(
-            column=column, q=quantile[i], filter_value=filter_value
-        )
+        method_kwargs = dict(column=column, q=quantile[i])
         method = 'compute_local_quantile_sampling_variance'
         local_quantile_sampling_variances = launch_subtask(
             client, method, ids, **method_kwargs
@@ -170,30 +202,23 @@ def compute_federated_quantiles(
 
 
 @data(1)
-def compute_local_sum(
-        df: pd.DataFrame, column: str, filter_value: str = None
-) -> Union[float, int]:
+def compute_local_sum(df: pd.DataFrame, column: str) -> Union[float, int]:
     """Compute local sum
 
     Parameters:
     - df: Input DataFrame
     - column: Name of the column to compute sum
-    - filter_value: Value to filter on a column set on node configuration
 
     Returns:
     - Local sum (float or int)
     """
-    if filter_value:
-        df = filter_df(df, filter_value)
-
     info('Computing local sum')
     return df[column].sum()
 
 
 @data(1)
 def compute_local_nrows(
-        df: pd.DataFrame, column: str, dropna: bool = True,
-        filter_value: str = None
+        df: pd.DataFrame, column: str, dropna: bool = True
 ) -> int:
     """Compute local number of rows
 
@@ -201,14 +226,10 @@ def compute_local_nrows(
     - df: Input DataFrame
     - column: Name of the column to compute number of rows
     - dropna: Whether to drop nan rows, defaults to True
-    - filter_value: Value to filter on a column set on node configuration
 
     Returns:
     - Local number of rows (int)
     """
-    if filter_value:
-        df = filter_df(df, filter_value)
-
     info('Computing local number of rows')
     if dropna:
         nrows = len(df[column].dropna())
@@ -219,7 +240,7 @@ def compute_local_nrows(
 
 @data(1)
 def compute_local_sum_errors2(
-        df: pd.DataFrame, column: str, mean: float, filter_value: str = None
+        df: pd.DataFrame, column: str, mean: float
 ) -> Union[float, int]:
     """Compute local sum of squared errors
 
@@ -227,21 +248,16 @@ def compute_local_sum_errors2(
     - df: Input DataFrame
     - column: Name of the column to compute sum of squared errors
     - mean: Mean to compute local sum of squared errors
-    - filter_value: Value to filter on a column set on node configuration
 
     Returns:
     - Local sum of squared errors (float or int)
     """
-    if filter_value:
-        df = filter_df(df, filter_value)
-
     info('Computing local sum of squared errors')
     return np.sum((df[column].dropna().values - mean)**2)
 
 
 def compute_federated_mean(
-        client: AlgorithmClient, ids: List[int], column: str,
-        filter_value: str = None
+        client: AlgorithmClient, ids: List[int], column: str
 ) -> Dict[str, float]:
     """Compute federated mean
 
@@ -249,18 +265,17 @@ def compute_federated_mean(
     - client: Vantage6 client object
     - ids: List of organization IDs
     - column: Name of the column to compute federated mean
-    - filter_value: Value to filter on a column set on node configuration
 
     Returns:
     - Dictionary with federated mean and its standard deviation
     """
     info('Collecting local sum')
-    method_kwargs = dict(column=column, filter_value=filter_value)
+    method_kwargs = dict(column=column)
     method = 'compute_local_sum'
     local_sums = launch_subtask(client, method, ids, **method_kwargs)
 
     info('Collecting local number of rows')
-    method_kwargs = dict(column=column, filter_value=filter_value)
+    method_kwargs = dict(column=column)
     method = 'compute_local_nrows'
     local_nrows = launch_subtask(client, method, ids, **method_kwargs)
 
@@ -268,9 +283,7 @@ def compute_federated_mean(
     federated_mean = np.sum(local_sums)/np.sum(local_nrows)
 
     info('Collecting local sum of squared errors')
-    method_kwargs = dict(
-        column=column, mean=federated_mean, filter_value=filter_value
-    )
+    method_kwargs = dict(column=column, mean=federated_mean)
     method = 'compute_local_sum_errors2'
     local_sum_errors2 = launch_subtask(client, method, ids, **method_kwargs)
 
@@ -285,7 +298,7 @@ def compute_federated_mean(
 
 def compute_federated_nrows(
         client: AlgorithmClient, ids: List[int], column: str,
-        dropna: bool = False, filter_value: str = None
+        dropna: bool = False
 ) -> int:
     """Compute federated number of rows
 
@@ -294,16 +307,13 @@ def compute_federated_nrows(
     - ids: List of organization IDs
     - column: Name of the column to compute federated mean
     - dropna: Whether to drop nan rows, defaults to False
-    - filter_value: Value to filter on a column set on node configuration
 
     Returns:
     - Federated number of rows (int)
     """
     info('Collecting local number of rows')
     # TODO: add dropna as task input
-    method_kwargs = dict(
-        column=column, dropna=dropna, filter_value=filter_value
-    )
+    method_kwargs = dict(column=column, dropna=dropna)
     method = 'compute_local_nrows'
     local_nrows = launch_subtask(client, method, ids, **method_kwargs)
 
@@ -313,48 +323,29 @@ def compute_federated_nrows(
     return federated_nrows
 
 
-@data(1)
-def compute_local_counts(
-        df: pd.DataFrame, column: str, filter_value: str = None
-) -> Dict[str, int]:
+def compute_local_counts(df: pd.DataFrame, column: str) -> Dict[str, int]:
     """Compute local counts per category
 
     Parameters:
     - df: Input DataFrame
     - column: Name of the column to compute counts per category
-    - filter_value: Value to filter on a column set on node configuration
 
     Returns:
     - Dictionary with local counts per category
     """
-    if filter_value:
-        df = filter_df(df, filter_value)
-
     info('Computing local counts per category')
     return df[column].value_counts(dropna=False).to_json()
 
 
-def compute_federated_counts(
-        client: AlgorithmClient, ids: List[int], column: str,
-        filter_value: str = None
-) -> Dict[str, int]:
+def compute_federated_counts(local_counts: List[str]) -> Dict[str, int]:
     """Compute federated counts for categorical variables
 
     Parameters:
-    - client: Vantage6 client object
-    - ids: List of organization IDs
-    - column: Name of the column to compute federated counts
-    - filter_value: Value to filter on a column set on node configuration
+    - local_counts: List of local counts per category
 
     Returns:
     - Dictionary with federated counts of categorical variables
     """
-    info('Collecting local counts per category')
-    method_kwargs = dict(column=column, filter_value=filter_value)
-    method = 'compute_local_counts'
-    local_counts = launch_subtask(client, method, ids, **method_kwargs)
-
-    info('Computing federated counts')
     federated_counts = {}
     for local_count in local_counts:
         local_count = json.loads(local_count)
@@ -363,34 +354,28 @@ def compute_federated_counts(
                 federated_counts[key] += value
             else:
                 federated_counts[key] = value
-
     return federated_counts
 
 
 @data(1)
 def compute_local_minmax(
-        df: pd.DataFrame, column: str, filter_value: str = None
+        df: pd.DataFrame, column: str
 ) -> Tuple[Union[int, float], Union[int, float]]:
     """Compute local minimum and maximum
 
     Parameters:
     - df: Input DataFrame
     - column: Name of the column to compute minimum and maximum
-    - filter_value: Value to filter on a column set on node configuration
 
     Returns:
     - Tuple with minimum and maximum values
     """
-    if filter_value:
-        df = filter_df(df, filter_value)
-
     info('Computing local minimum and maximum values')
     return df[column].dropna().min(), df[column].dropna().max()
 
 
 def compute_federated_minmax(
-        client: AlgorithmClient, ids: List[int], column: str,
-        filter_value: str = None
+        client: AlgorithmClient, ids: List[int], column: str
 ) -> Dict[str, Union[int, float]]:
     """Compute federated minimum and maximum values
 
@@ -398,13 +383,12 @@ def compute_federated_minmax(
     - client: Vantage6 client object
     - ids: List of organization IDs
     - column: Name of the column to compute federated minimum and maximum
-    - filter_value: Value to filter on a column set on node configuration
 
     Returns:
     - Dictionary with federated minimum and maximum values
     """
     info('Collecting local minimum and maximum values')
-    method_kwargs = dict(column=column, filter_value=filter_value)
+    method_kwargs = dict(column=column)
     method = 'compute_local_minmax'
     local_minmax = launch_subtask(client, method, ids, **method_kwargs)
 
