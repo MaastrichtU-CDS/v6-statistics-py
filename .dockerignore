@@ -1,0 +1,115 @@
+# Python cache and compiled files
+**/__pycache__/
+**/*.py[cod]
+**/*$py.class
+**/*.so
+
+# Packaging and build artifacts
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+**/*.egg-info/
+.installed.cfg
+**/*.egg
+MANIFEST
+
+# Installer logs
+pip-log.txt
+pip-delete-this-directory.txt
+
+# PyInstaller
+**/*.manifest
+**/*.spec
+
+# Testing, coverage, and dev tools
+htmlcov/
+.tox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+**/*.cover
+.hypothesis/
+.pytest_cache/
+tests/
+dev/
+Makefile
+
+# Git and GitHub
+.git
+.gitignore
+.github/
+
+# Translation files
+**/*.mo
+**/*.pot
+
+# Common dev framework files (Django, Flask, etc.)
+**/*.log
+local_settings.py
+**/db.sqlite3
+instance/
+.webassets-cache
+.scrapy/
+
+# Documentation
+docs/_build/
+site/
+
+# IDE/editor settings
+.vscode/
+.spyderproject
+.spyproject
+.ropeproject
+.python-version
+
+# Build tools
+target/
+
+# Jupyter
+**/.ipynb_checkpoints/
+**/*.ipynb
+
+# mypy
+.mypy_cache/
+
+# Environments
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# Data files
+data/
+**/*.csv
+**/*.tsv
+**/*.json
+**/*.pkl
+**/*.h5
+**/*.feather
+**/*.parquet
+**/*.sqlite
+**/*.db
+**/*.xls
+**/*.xlsx
+**/*.xlsm
+**/*.xlsb
+**/*.odf
+**/*.ods
+**/*.odt
+**/*.ots
+**/*.ott
