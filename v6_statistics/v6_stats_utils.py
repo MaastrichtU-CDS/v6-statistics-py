@@ -218,7 +218,7 @@ def compute_local_sum(df: pd.DataFrame, column: str) -> Union[float, int]:
     Returns:
     - Local sum (float or int)
     """
-    return df[column].sum()
+    return float(df[column].sum())
 
 
 def compute_local_nrows(
