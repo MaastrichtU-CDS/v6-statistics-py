@@ -49,6 +49,7 @@ input_ = {
             'columnA': ['mean', 'minmax', 'quantiles', 'nrows'],
             'columnB': ['counts', 'nrows']
         }, # Define which statistics to compute per column
+        'suppression': 5, # Number of records to apply suppression
         'filter_value': 'A', # Value to filter on a node configured column
         'organization_ids': [1, 2, 3] # Example organization IDs
     }

@@ -12,6 +12,7 @@ from .v6_stats_utils import compute_local_stds
 def master(
     client: AlgorithmClient,
     statistics: Dict[str, List[str]],
+    suppression: int = None,
     filter_value: str = None,
     organization_ids: List[int] = None
 ) -> Dict[str, Dict[str, Union[int, Dict[str, Union[int, float]]]]]:
@@ -20,6 +21,7 @@ def master(
     Parameters:
     - client: Vantage6 client object
     - statistics: Dictionary with columns and statistics to compute per column
+    - suppression: Number of records to apply suppression
     - filter_value: Value to filter on a column set on node configuration
     - organization_ids: Organization IDs to include, default includes all
 
@@ -38,6 +40,7 @@ def master(
         client=client,
         ids=ids,
         statistics=statistics,
+        suppression=suppression,
         filter_value=filter_value
     )
     return column_stats

@@ -13,6 +13,7 @@ def calculate_column_stats(
         client: AlgorithmClient,
         ids: List[int],
         statistics: Dict[str, List[str]],
+        suppression: int = None,
         filter_value: str = None
 ) -> Dict[str, Dict[str, Union[int, Dict[str, Union[int, float]]]]]:
     """Calculate desired statistics per column
@@ -21,6 +22,7 @@ def calculate_column_stats(
     - client: Vantage6 client object
     - ids: List of organization IDs
     - statistics: Dictionary with columns and statistics to compute per column
+    - suppression: Number of records to apply suppression
     - filter_value: Value to filter on a column set on node configuration
 
     Returns:
@@ -50,7 +52,9 @@ def calculate_column_stats(
             input = [
                 local_stat[column][statistic] for local_stat in local_stats
             ]
-            column_stats[column][statistic] = methods[statistic](input)
+            column_stats[column][statistic] = methods[statistic](
+                input, suppression
+            )
 
     # Computing local standard deviations
     method_kwargs = dict(
@@ -65,7 +69,9 @@ def calculate_column_stats(
         if 'mean' in col_stats:
             info(f'Computing federated standard deviation for {column}')
             stds = [local_std[column] for local_std in local_stds]
-            column_stats[column]['mean']['std'] = compute_federated_std(stds)
+            column_stats[column]['mean']['std'] = compute_federated_std(
+                stds, suppression
+            )
 
     return column_stats
 
@@ -170,12 +176,13 @@ def compute_local_quantiles(df: pd.DataFrame, column: str) -> Dict[str, float]:
 
 
 def compute_federated_quantiles(
-        local_quantiles: List[Dict[str, float]]
+        local_quantiles: List[Dict[str, float]], suppression: int = None
 ) -> Dict[str, float]:
     """Compute federated quantiles
 
     Parameters:
     - local_quantiles: List with local quantiles and their sampling variances
+    - suppression: Number of records to apply suppression
 
     Returns:
     - Dictionary with federated quantiles and their standard errors
@@ -309,12 +316,13 @@ def compute_local_stds(
 
 
 def compute_federated_mean(
-        local_means: List[Dict[str, float]]
+        local_means: List[Dict[str, float]], suppression: int = None
 ) -> Dict[str, float]:
     """Compute federated mean
 
     Parameters:
     - local_means: List with local sums and nrows per column
+    - suppression: Number of records to apply suppression
 
     Returns:
     - Federated mean (float)
@@ -327,11 +335,14 @@ def compute_federated_mean(
     }
 
 
-def compute_federated_std(local_stds: List[Dict[str, float]]) -> float:
+def compute_federated_std(
+        local_stds: List[Dict[str, float]], suppression: int = None
+) -> float:
     """Compute federated standard deviation
 
     Parameters:
     - local_stds: List with local sums of squared errors and nrows per column
+    - suppression: Number of records to apply suppression
 
     Returns:
     - Federated standard deviation (float)
@@ -342,11 +353,14 @@ def compute_federated_std(local_stds: List[Dict[str, float]]) -> float:
     return federated_std
 
 
-def compute_federated_nrows(local_nrows: List[int]) -> int:
+def compute_federated_nrows(
+        local_nrows: List[int], suppression: int = None
+) -> int:
     """Compute federated number of rows
 
     Parameters:
     - local_nrows: List of local number of rows
+    - suppression: Number of records to apply suppression
 
     Returns:
     - Federated number of rows (int)
@@ -367,11 +381,14 @@ def compute_local_counts(df: pd.DataFrame, column: str) -> Dict[str, int]:
     return df[column].value_counts(dropna=False).to_json()
 
 
-def compute_federated_counts(local_counts: List[str]) -> Dict[str, int]:
+def compute_federated_counts(
+        local_counts: List[str], suppression
+) -> Dict[str, int]:
     """Compute federated counts for categorical variables
 
     Parameters:
     - local_counts: List of local counts per category
+    - suppression: Number of records to apply suppression
 
     Returns:
     - Dictionary with federated counts of categorical variables
@@ -384,6 +401,13 @@ def compute_federated_counts(local_counts: List[str]) -> Dict[str, int]:
                 federated_counts[key] += value
             else:
                 federated_counts[key] = value
+
+    # Apply suppression in a global level
+    if suppression:
+        for key, value in federated_counts.items():
+            if value < suppression:
+                federated_counts[key] = suppression
+
     return federated_counts
 
 
@@ -403,12 +427,14 @@ def compute_local_minmax(
 
 
 def compute_federated_minmax(
-       local_minmax: List[Tuple[Union[int, float], Union[int, float]]]
+       local_minmax: List[Tuple[Union[int, float], Union[int, float]]],
+        suppression: int = None
 ) -> Dict[str, Union[int, float]]:
     """Compute federated minimum and maximum values
 
     Parameters:
     - local_minmax: List of tuples of minimum and maximum values for a column
+    - suppression: Number of records to apply suppression
 
     Returns:
     - Dictionary with federated minimum and maximum values
