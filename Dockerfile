@@ -3,7 +3,7 @@
 # different image here (e.g. python:3). In that case it is important that
 # `vantage6-client` is a dependancy of you project as this contains the wrapper
 # we are using in this example.
-FROM harbor2.vantage6.ai/infrastructure/algorithm-base:4.2
+FROM harbor2.vantage6.ai/infrastructure/algorithm-base:4.9
 
 # Change this to the package name of your project. This needs to be the same
 # as what you specified for the name in the `setup.py`.
