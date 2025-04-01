@@ -425,7 +425,7 @@ def compute_federated_counts(
 
 def compute_local_minmax(
         df: pd.DataFrame, column: str
-) -> Tuple[Union[int, float], Union[int, float]]:
+) -> Dict[str, Union[Tuple[Union[int, float], Union[int, float]], int]]:
     """Compute local minimum and maximum
 
     Parameters:
@@ -435,11 +435,16 @@ def compute_local_minmax(
     Returns:
     - Tuple with minimum and maximum values
     """
-    return df[column].dropna().min(), df[column].dropna().max()
+    return {
+        'minmax': [df[column].dropna().min(), df[column].dropna().max()],
+        'nrows': compute_local_nrows(df, column, True)
+    }
 
 
 def compute_federated_minmax(
-       local_minmax: List[Tuple[Union[int, float], Union[int, float]]],
+        local_minmax: Dict[
+            str, Union[Tuple[Union[int, float], Union[int, float]], int]
+        ],
         suppression: int = None
 ) -> Dict[str, Union[int, float]]:
     """Compute federated minimum and maximum values
@@ -451,6 +456,14 @@ def compute_federated_minmax(
     Returns:
     - Dictionary with federated minimum and maximum values
     """
+    # Applying global suppression
+    if suppression:
+        nrows = np.sum([nrow['nrows'] for nrow in local_minmax])
+        if nrows <= suppression:
+            return {'min': np.nan, 'max': np.nan}
+
+    # Computing global min and max
+    local_minmax = [minmax['minmax'] for minmax in local_minmax]
     return {
         'min': np.min(local_minmax),
         'max': np.max(local_minmax)
