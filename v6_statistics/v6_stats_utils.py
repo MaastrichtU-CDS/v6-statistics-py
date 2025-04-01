@@ -365,7 +365,11 @@ def compute_federated_nrows(
     Returns:
     - Federated number of rows (int)
     """
-    return int(np.sum(local_nrows))
+    nrows = int(np.sum(local_nrows))
+    if suppression:
+        if nrows < suppression:
+            nrows = suppression
+    return nrows
 
 
 def compute_local_counts(df: pd.DataFrame, column: str) -> Dict[str, int]:
