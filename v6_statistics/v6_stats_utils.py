@@ -231,7 +231,7 @@ def compute_local_sum(df: pd.DataFrame, column: str) -> Union[float, int]:
     Returns:
     - Local sum (float or int)
     """
-    return df[column].sum()
+    return float(df[column].sum())
 
 
 def compute_local_nrows(
@@ -433,10 +433,18 @@ def compute_local_minmax(
     - column: Name of the column to compute minimum and maximum
 
     Returns:
-    - Tuple with minimum and maximum values
+    - Dictionary with minimum and maximum and number of rows for suppression
     """
+    # min()/max() return non-json-serializable numpy.int64, etc
+    min = df[column].dropna().min().item()
+    max = df[column].dropna().max().item()
+
+    # We want to make sure we are returning something simple for privacy's sake
+    assert isinstance(min, (int, float))
+    assert isinstance(max, (int, float))
+
     return {
-        'minmax': [df[column].dropna().min(), df[column].dropna().max()],
+        'minmax': [min, max],
         'nrows': compute_local_nrows(df, column, True)
     }
 
