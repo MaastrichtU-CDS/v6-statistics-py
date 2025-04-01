@@ -170,6 +170,7 @@ def compute_local_quantiles(df: pd.DataFrame, column: str) -> Dict[str, float]:
         quantiles[f'variance_Q{i}'] = compute_local_quantile_sampling_variance(
             df, column, q[i]
         )
+    quantiles['nrows'] = compute_local_nrows(df, column, True)
     return quantiles
 
 
@@ -185,6 +186,13 @@ def compute_federated_quantiles(
     Returns:
     - Dictionary with federated quantiles and their standard errors
     """
+    # Applying global suppression
+    if suppression:
+        nrows = np.sum([quantile['nrows'] for quantile in local_quantiles])
+        if nrows <= suppression:
+            return {'Q': np.nan}
+
+    # Computing federated quantiles
     federated_quantiles = {}
     for i in range(1, 4):
         info(f'Unwrapping quantiles Q{i} and their sampling variances')
