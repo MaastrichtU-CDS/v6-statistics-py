@@ -69,9 +69,7 @@ def calculate_column_stats(
         if 'mean' in col_stats:
             info(f'Computing federated standard deviation for {column}')
             stds = [local_std[column] for local_std in local_stds]
-            column_stats[column]['mean']['std'] = compute_federated_std(
-                stds, suppression
-            )
+            column_stats[column]['mean']['std'] = compute_federated_std(stds)
 
     return column_stats
 
@@ -329,20 +327,22 @@ def compute_federated_mean(
     """
     local_sums = [local_mean['sum'] for local_mean in local_means]
     local_nrows = [local_mean['nrows'] for local_mean in local_means]
-    federated_mean = np.sum(local_sums)/np.sum(local_nrows)
+    nrows = np.sum(local_nrows)
+    federated_mean = np.sum(local_sums)/nrows
+    if suppression:
+        if nrows <= suppression:
+            federated_mean = np.nan
     return {
         'mean': federated_mean
     }
 
 
-def compute_federated_std(
-        local_stds: List[Dict[str, float]], suppression: int = None
-) -> float:
-    """Compute federated standard deviation
+def compute_federated_std(local_stds: List[Dict[str, float]]) -> float:
+    """Compute federated standard deviation, when suppression is applied for
+    the mean it will automatically be applied here
 
     Parameters:
     - local_stds: List with local sums of squared errors and nrows per column
-    - suppression: Number of records to apply suppression
 
     Returns:
     - Federated standard deviation (float)
