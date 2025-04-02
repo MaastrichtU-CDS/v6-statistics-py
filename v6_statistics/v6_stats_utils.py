@@ -7,6 +7,7 @@ from typing import Any, Callable, Dict, List, Union, Tuple
 from vantage6.algorithm.client import AlgorithmClient
 from vantage6.algorithm.tools.util import info, warn, error, get_env_var
 from vantage6.algorithm.tools.decorators import data
+from .data_issues import validate_column, strip_invalid_results
 
 
 def calculate_column_stats(
@@ -118,6 +119,7 @@ def compute_local_stats(
     return local_stats
 
 
+@validate_column
 def compute_local_quantile_sampling_variance(
         df: pd.DataFrame, column: str, q: float, iterations: int = 1000
 ) -> float:
@@ -151,6 +153,7 @@ def compute_local_quantile_sampling_variance(
     return quantile_variance
 
 
+@validate_column
 def compute_local_quantiles(df: pd.DataFrame, column: str) -> Dict[str, float]:
     """Compute local quantiles
 
@@ -176,6 +179,7 @@ def compute_local_quantiles(df: pd.DataFrame, column: str) -> Dict[str, float]:
     return quantiles
 
 
+@strip_invalid_results
 def compute_federated_quantiles(
         local_quantiles: List[Dict[str, float]], suppression: int = None
 ) -> Dict[str, float]:
@@ -223,6 +227,7 @@ def compute_federated_quantiles(
     return federated_quantiles
 
 
+@validate_column
 def compute_local_sum(df: pd.DataFrame, column: str) -> Union[float, int]:
     """Compute local sum
 
@@ -236,6 +241,7 @@ def compute_local_sum(df: pd.DataFrame, column: str) -> Union[float, int]:
     return float(df[column].sum())
 
 
+@validate_column
 def compute_local_nans(df: pd.DataFrame, column: str) -> int:
     """Compute local number of NaNs in a column
 
@@ -249,6 +255,7 @@ def compute_local_nans(df: pd.DataFrame, column: str) -> int:
     return int(df[column].isna().sum())
 
 
+@validate_column
 def compute_local_nrows(
         df: pd.DataFrame, column: str, dropna: bool = False
 ) -> int:
@@ -269,6 +276,7 @@ def compute_local_nrows(
     return int(nrows)
 
 
+@validate_column
 def compute_local_sum_errors2(
         df: pd.DataFrame, column: str, mean: float
 ) -> Union[float, int]:
@@ -285,6 +293,7 @@ def compute_local_sum_errors2(
     return np.sum((df[column].dropna().values - mean)**2)
 
 
+@validate_column
 def compute_local_means(
         df: pd.DataFrame, column: str
 ) -> Dict[str, Union[float, int]]:
@@ -336,6 +345,7 @@ def compute_local_stds(
     return local_stds
 
 
+@strip_invalid_results
 def compute_federated_mean(
         local_means: List[Dict[str, float]], suppression: int = None
 ) -> Dict[str, float]:
@@ -360,6 +370,7 @@ def compute_federated_mean(
     }
 
 
+@strip_invalid_results
 def compute_federated_std(local_stds: List[Dict[str, float]]) -> float:
     """Compute federated standard deviation, when suppression is applied for
     the mean it will automatically be applied here
@@ -376,6 +387,7 @@ def compute_federated_std(local_stds: List[Dict[str, float]]) -> float:
     return federated_std
 
 
+@strip_invalid_results
 def compute_federated_nrows(
         local_nrows: List[int], suppression: int = None
 ) -> int:
@@ -395,6 +407,7 @@ def compute_federated_nrows(
     return nrows
 
 
+@strip_invalid_results
 def compute_federated_nans(
         local_nans: List[int], suppression: int = None
 ) -> int:
@@ -414,6 +427,7 @@ def compute_federated_nans(
     return nans
 
 
+@validate_column
 def compute_local_counts(df: pd.DataFrame, column: str) -> Dict[str, int]:
     """Compute local counts per category
 
@@ -427,6 +441,7 @@ def compute_local_counts(df: pd.DataFrame, column: str) -> Dict[str, int]:
     return df[column].value_counts(dropna=False).to_json()
 
 
+@strip_invalid_results
 def compute_federated_counts(
         local_counts: List[str], suppression
 ) -> Dict[str, int]:
@@ -457,6 +472,7 @@ def compute_federated_counts(
     return federated_counts
 
 
+@validate_column
 def compute_local_minmax(
         df: pd.DataFrame, column: str
 ) -> Dict[str, Union[Tuple[Union[int, float], Union[int, float]], int]]:
@@ -482,11 +498,11 @@ def compute_local_minmax(
         'nrows': compute_local_nrows(df, column, True)
     }
 
-
+@strip_invalid_results
 def compute_federated_minmax(
-        local_minmax: Dict[
+        local_minmax: List[Dict[
             str, Union[Tuple[Union[int, float], Union[int, float]], int]
-        ],
+        ]],
         suppression: int = None
 ) -> Dict[str, Union[int, float]]:
     """Compute federated minimum and maximum values
