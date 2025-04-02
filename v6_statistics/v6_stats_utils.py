@@ -370,7 +370,6 @@ def compute_federated_mean(
     }
 
 
-@strip_invalid_results
 def compute_federated_std(local_stds: List[Dict[str, float]]) -> float:
     """Compute federated standard deviation, when suppression is applied for
     the mean it will automatically be applied here
@@ -381,8 +380,16 @@ def compute_federated_std(local_stds: List[Dict[str, float]]) -> float:
     Returns:
     - Federated standard deviation (float)
     """
-    local_sum_errors2 = [local_std['sum_errors2'] for local_std in local_stds]
-    local_nrows = [local_std['nrows'] for local_std in local_stds]
+    local_sum_errors2 = [
+        local_std['sum_errors2'] for local_std in local_stds
+        if local_std['sum_errors2'] is not None
+    ]
+    local_nrows = [
+        local_std['nrows'] for local_std in local_stds
+        if local_std['nrows'] is not None
+    ]
+    # TODO: the result does not exactly match with centralised, why? Does it
+    #  have to do with the size of the floats?
     federated_std = np.sqrt(np.sum(local_sum_errors2)/np.sum(local_nrows))
     return federated_std
 
