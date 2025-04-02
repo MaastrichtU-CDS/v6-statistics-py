@@ -1,4 +1,5 @@
 import json
+import os
 
 import numpy as np
 import pandas as pd
@@ -6,7 +7,7 @@ import pandas as pd
 from typing import Any, Callable, Dict, List, Union, Tuple
 from vantage6.algorithm.client import AlgorithmClient
 from vantage6.algorithm.tools.util import info, warn, error, get_env_var
-from vantage6.algorithm.tools.decorators import data
+from vantage6.algorithm.tools.decorators import data, _get_user_database_labels
 from .data_issues import validate_column, strip_invalid_results
 
 
@@ -105,12 +106,24 @@ def compute_local_stats(
         'nans': compute_local_nans
     }
 
+    allowed_stats = get_data_config()['allowed_stats']
+
     # Computing local statistics per column
     local_stats = {}
     for column, col_stats in statistics.items():
         info(f'Computing statistics for {column}')
         local_stats[column] = {}
         for statistic in col_stats:
+            # Check if statistic is allowed for the column
+            if statistic not in allowed_stats[column]:
+                error(
+                    f'Statistic "{statistic}" is not allowed for column "{column}".'
+                    f' Please check your node configuration.'
+                )
+                raise ValueError(
+                    f'Statistic "{statistic}" is not allowed for column "{column}".'
+                    f' Please check your node configuration.'
+                )
             info(f'Computing {statistic} for {column}')
             local_stats[column][statistic] = methods[statistic](
                 df=df, column=column
@@ -629,6 +642,80 @@ def filter_df(df: pd.DataFrame, filter_value: str) -> pd.DataFrame:
         df[filter_column] = df[filter_column].astype(str)
 
     return df[df[filter_column] == str(filter_value)]
+
+
+def get_data_config() -> Dict:
+    """
+    Get data configuration specifying which statistics are allowed to be
+    computed for each column
+
+    It expects a {database}_config label to be present, where {database} is the
+    label poiting to the dataset.
+
+    FIXME: this is hacky, requires researcher to pass the config label after
+    the dataset label, so that @data(1) will still work. We could monkey-patch,
+    or ship our own custom decorator, or upstream something to vantage6... but
+    for now, this is an option.
+
+    Returns:
+    - Dictionary with config
+    """
+    labels = _get_user_database_labels()
+
+    if len(labels) != 2:
+        error(
+            "There should be exactly two labels: for the dataset and its config."
+            " Please check your node configuration."
+        )
+        raise ValueError('Invalid number of labels')
+
+    # Get the config label (the one that ends in _config and is the other's other_config)
+    config_label = [label for label in labels if label.endswith('_config')][0]
+    if not config_label:
+        error(
+            "No config label found. Please check your node configuration."
+        )
+        raise ValueError('No config label found')
+
+    if config_label.replace('_config', '') not in labels:
+        error(
+            "Config label does not match the dataset label. Please check your node configuration."
+        )
+        raise ValueError('Config label does not match dataset label')
+
+    config_uri = os.environ.get(f"{config_label}_DATABASE_URI".upper())
+    config = None
+    try:
+        # load json
+        with open(config_uri) as f:
+            config = json.load(f)
+    except FileNotFoundError:
+        error(
+            f"Config file not found. Please check your node configuration."
+            f" Config label: {config_label}"
+        )
+        raise ValueError('Config file not found')
+    except json.JSONDecodeError:
+        error(
+            f"Failed to decode config JSON. Please check your node configuration."
+            f" Config label: {config_label}"
+        )
+        raise ValueError('Failed to decode JSON from config URI')
+
+    # some hacky quick validation right here..
+    if 'allowed_stats' not in config:
+        error(
+            "No allowed_stats found in config. Please check your node configuration."
+        )
+        raise ValueError('No allowed_stats found in config')
+
+    if not isinstance(config['allowed_stats'], dict):
+        error(
+            "allowed_stats should be a dictionary. Please check your node configuration."
+        )
+        raise ValueError('allowed_stats should be a dictionary')
+
+    return config
 
 
 def launch_subtask(
