@@ -39,7 +39,8 @@ def calculate_column_stats(
         'minmax': compute_federated_minmax,
         'mean': compute_federated_mean,
         'quantiles': compute_federated_quantiles,
-        'nrows': compute_federated_nrows
+        'nrows': compute_federated_nrows,
+        'nans': compute_federated_nans
     }
 
     # Computing federated statistics per column
@@ -99,7 +100,8 @@ def compute_local_stats(
         'minmax': compute_local_minmax,
         'mean': compute_local_means,
         'quantiles': compute_local_quantiles,
-        'nrows': compute_local_nrows
+        'nrows': compute_local_nrows,
+        'nans': compute_local_nans
     }
 
     # Computing local statistics per column
@@ -232,6 +234,19 @@ def compute_local_sum(df: pd.DataFrame, column: str) -> Union[float, int]:
     - Local sum (float or int)
     """
     return float(df[column].sum())
+
+
+def compute_local_nans(df: pd.DataFrame, column: str) -> int:
+    """Compute local number of NaNs in a column
+
+    Parameters:
+    - df: Input DataFrame
+    - column: Name of the column to compute number of rows
+
+    Returns:
+    - Local number of NaNs (int)
+    """
+    return int(df[column].isna().sum())
 
 
 def compute_local_nrows(
@@ -378,6 +393,25 @@ def compute_federated_nrows(
         if nrows < suppression:
             nrows = suppression
     return nrows
+
+
+def compute_federated_nans(
+        local_nans: List[int], suppression: int = None
+) -> int:
+    """Compute federated number of NaNs for a certain variable
+
+    Parameters:
+    - local_nans: List of local number of NaNs
+    - suppression: Number of records to apply suppression
+
+    Returns:
+    - Federated number of NaNs (int)
+    """
+    nans = int(np.sum(local_nans))
+    if suppression:
+        if nans < suppression:
+            nans = suppression
+    return nans
 
 
 def compute_local_counts(df: pd.DataFrame, column: str) -> Dict[str, int]:
