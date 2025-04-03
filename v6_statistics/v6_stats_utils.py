@@ -358,13 +358,29 @@ def compute_federated_mean(
     Returns:
     - Federated mean (float)
     """
-    local_sums = [local_mean['sum'] for local_mean in local_means]
-    local_nrows = [local_mean['nrows'] for local_mean in local_means]
+    # Unwrap local sums and number of rows and remove NaN results to account
+    # for nodes that had columns with only NaNs
+    local_sums = [
+        local_mean['sum'] for local_mean in local_means
+        if not np.isnan(local_mean['sum'])
+    ]
+    local_nrows = [
+        local_mean['nrows'] for local_mean in local_means
+        if not np.isnan(local_mean['nrows'])
+    ]
+    if len(local_sums) != len(local_nrows):
+        error('Length of lists of local sums and number of rows do not match!')
+
+    # Compute federated mean and apply suppression if necessary and required
     nrows = np.sum(local_nrows)
-    federated_mean = np.sum(local_sums)/nrows
-    if suppression:
-        if nrows <= suppression:
-            federated_mean = np.nan
+    if nrows > 0:
+        federated_mean = np.sum(local_sums)/nrows
+        if suppression:
+            if nrows <= suppression:
+                federated_mean = np.nan
+    else:
+        federated_mean = np.nan
+
     return {
         'mean': federated_mean
     }
@@ -503,6 +519,7 @@ def compute_local_minmax(
         'minmax': [min, max],
         'nrows': compute_local_nrows(df, column, True)
     }
+
 
 @strip_invalid_results
 def compute_federated_minmax(
