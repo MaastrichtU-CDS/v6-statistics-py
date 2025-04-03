@@ -510,6 +510,7 @@ def compute_federated_counts(
     for local_count in local_counts:
         local_count = json.loads(local_count)
         for key, value in local_count.items():
+            info(f'DEBUG: {type(value)}')
             if key in federated_counts:
                 federated_counts[key] += value
             else:
@@ -590,8 +591,8 @@ def compute_federated_minmax(
     max = np.max(max) if len(max) > 0 else np.nan
 
     return {
-        'min': min,
-        'max': max
+        'min': float(min),
+        'max': float(max)
     }
 
 
