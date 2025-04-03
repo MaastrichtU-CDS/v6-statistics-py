@@ -35,6 +35,7 @@ average_task = client.task.create(
                 'columnA': ['mean', 'minmax', 'quantiles', 'nrows'],
                 'columnB': ['counts', 'nrows']
             },
+            'suppression': 5,
             'filter_value': None
         }
     },
