@@ -7,6 +7,7 @@ from typing import Any, Callable, Dict, List, Union, Tuple
 from vantage6.algorithm.client import AlgorithmClient
 from vantage6.algorithm.tools.util import info, warn, error, get_env_var
 from vantage6.algorithm.tools.decorators import data
+from .data_issues import validate_column, strip_invalid_results
 
 
 def calculate_column_stats(
@@ -118,6 +119,7 @@ def compute_local_stats(
     return local_stats
 
 
+@validate_column
 def compute_local_quantile_sampling_variance(
         df: pd.DataFrame, column: str, q: float, iterations: int = 1000
 ) -> float:
@@ -151,6 +153,7 @@ def compute_local_quantile_sampling_variance(
     return quantile_variance
 
 
+@validate_column
 def compute_local_quantiles(df: pd.DataFrame, column: str) -> Dict[str, float]:
     """Compute local quantiles
 
@@ -165,17 +168,20 @@ def compute_local_quantiles(df: pd.DataFrame, column: str) -> Dict[str, float]:
     quantiles = {}
     for i in range(1, 4):
         info(f'Collecting local quantile Q{i}')
-        quantiles[f'Q{i}'] = np.quantile(df[column].dropna().values, q[i])
+        values = df[column].dropna().values
+        quantiles[f'Q{i}'] = np.quantile(values, q[i]) \
+            if len(values) > 0 else np.nan
 
         info(f'Collecting local sampling variances of quantile Q{i}')
         # TODO: add number of iterations for bootstrapping as parameter
         quantiles[f'variance_Q{i}'] = compute_local_quantile_sampling_variance(
             df, column, q[i]
-        )
+        ) if len(values) > 0 else np.nan
     quantiles['nrows'] = compute_local_nrows(df, column, True)
     return quantiles
 
 
+@strip_invalid_results
 def compute_federated_quantiles(
         local_quantiles: List[Dict[str, float]], suppression: int = None
 ) -> Dict[str, float]:
@@ -190,7 +196,10 @@ def compute_federated_quantiles(
     """
     # Applying global suppression
     if suppression:
-        nrows = np.sum([quantile['nrows'] for quantile in local_quantiles])
+        nrows = np.sum([
+            quantile['nrows'] for quantile in local_quantiles
+            if not np.isnan(quantile['nrows'])
+        ])
         if nrows <= suppression:
             return {'Q': np.nan}
 
@@ -198,8 +207,19 @@ def compute_federated_quantiles(
     federated_quantiles = {}
     for i in range(1, 4):
         info(f'Unwrapping quantiles Q{i} and their sampling variances')
-        quantiles_i = np.array([q[f'Q{i}'] for q in local_quantiles])
-        variances_i = np.array([q[f'variance_Q{i}'] for q in local_quantiles])
+        # Also removing NaN results to account for nodes that have columns
+        # with only NaN values
+        quantiles_i = np.array([
+            q[f'Q{i}'] for q in local_quantiles if not np.isnan(q[f'Q{i}'])
+        ])
+        variances_i = np.array([
+            q[f'variance_Q{i}'] for q in local_quantiles
+            if not np.isnan(q[f'variance_Q{i}'])
+        ])
+        if len(quantiles_i) != len(variances_i):
+            error(
+                'Length of lists of local quantiles and variances do not match!'
+            )
 
         info('Computing between study heterogeneity')
         # Using DerSimonian and Laird method to estimate tau2, see equation 8 in
@@ -223,6 +243,7 @@ def compute_federated_quantiles(
     return federated_quantiles
 
 
+@validate_column
 def compute_local_sum(df: pd.DataFrame, column: str) -> Union[float, int]:
     """Compute local sum
 
@@ -236,6 +257,7 @@ def compute_local_sum(df: pd.DataFrame, column: str) -> Union[float, int]:
     return float(df[column].sum())
 
 
+@validate_column
 def compute_local_nans(df: pd.DataFrame, column: str) -> int:
     """Compute local number of NaNs in a column
 
@@ -249,6 +271,7 @@ def compute_local_nans(df: pd.DataFrame, column: str) -> int:
     return int(df[column].isna().sum())
 
 
+@validate_column
 def compute_local_nrows(
         df: pd.DataFrame, column: str, dropna: bool = False
 ) -> int:
@@ -269,6 +292,7 @@ def compute_local_nrows(
     return int(nrows)
 
 
+@validate_column
 def compute_local_sum_errors2(
         df: pd.DataFrame, column: str, mean: float
 ) -> Union[float, int]:
@@ -285,6 +309,7 @@ def compute_local_sum_errors2(
     return np.sum((df[column].dropna().values - mean)**2)
 
 
+@validate_column
 def compute_local_means(
         df: pd.DataFrame, column: str
 ) -> Dict[str, Union[float, int]]:
@@ -336,6 +361,7 @@ def compute_local_stds(
     return local_stds
 
 
+@strip_invalid_results
 def compute_federated_mean(
         local_means: List[Dict[str, float]], suppression: int = None
 ) -> Dict[str, float]:
@@ -348,13 +374,29 @@ def compute_federated_mean(
     Returns:
     - Federated mean (float)
     """
-    local_sums = [local_mean['sum'] for local_mean in local_means]
-    local_nrows = [local_mean['nrows'] for local_mean in local_means]
+    # Unwrap local sums and number of rows and remove NaN results to account
+    # for nodes that have columns with only NaNs
+    local_sums = [
+        local_mean['sum'] for local_mean in local_means
+        if not np.isnan(local_mean['sum'])
+    ]
+    local_nrows = [
+        local_mean['nrows'] for local_mean in local_means
+        if not np.isnan(local_mean['nrows'])
+    ]
+    if len(local_sums) != len(local_nrows):
+        error('Length of lists of local sums and number of rows do not match!')
+
+    # Compute federated mean and apply suppression if necessary and required
     nrows = np.sum(local_nrows)
-    federated_mean = np.sum(local_sums)/nrows
-    if suppression:
-        if nrows <= suppression:
-            federated_mean = np.nan
+    if nrows > 0:
+        federated_mean = np.sum(local_sums)/nrows
+        if suppression:
+            if nrows <= suppression:
+                federated_mean = np.nan
+    else:
+        federated_mean = np.nan
+
     return {
         'mean': federated_mean
     }
@@ -370,12 +412,21 @@ def compute_federated_std(local_stds: List[Dict[str, float]]) -> float:
     Returns:
     - Federated standard deviation (float)
     """
-    local_sum_errors2 = [local_std['sum_errors2'] for local_std in local_stds]
-    local_nrows = [local_std['nrows'] for local_std in local_stds]
+    local_sum_errors2 = [
+        local_std['sum_errors2'] for local_std in local_stds
+        if local_std['sum_errors2'] is not None
+    ]
+    local_nrows = [
+        local_std['nrows'] for local_std in local_stds
+        if local_std['nrows'] is not None
+    ]
+    # TODO: the result does not exactly match with centralised, why? Does it
+    #  have to do with the size of the floats?
     federated_std = np.sqrt(np.sum(local_sum_errors2)/np.sum(local_nrows))
     return federated_std
 
 
+@strip_invalid_results
 def compute_federated_nrows(
         local_nrows: List[int], suppression: int = None
 ) -> int:
@@ -395,6 +446,7 @@ def compute_federated_nrows(
     return nrows
 
 
+@strip_invalid_results
 def compute_federated_nans(
         local_nans: List[int], suppression: int = None
 ) -> int:
@@ -414,6 +466,7 @@ def compute_federated_nans(
     return nans
 
 
+@validate_column
 def compute_local_counts(df: pd.DataFrame, column: str) -> Dict[str, int]:
     """Compute local counts per category
 
@@ -427,6 +480,7 @@ def compute_local_counts(df: pd.DataFrame, column: str) -> Dict[str, int]:
     return df[column].value_counts(dropna=False).to_json()
 
 
+@strip_invalid_results
 def compute_federated_counts(
         local_counts: List[str], suppression
 ) -> Dict[str, int]:
@@ -457,6 +511,7 @@ def compute_federated_counts(
     return federated_counts
 
 
+@validate_column
 def compute_local_minmax(
         df: pd.DataFrame, column: str
 ) -> Dict[str, Union[Tuple[Union[int, float], Union[int, float]], int]]:
@@ -469,13 +524,12 @@ def compute_local_minmax(
     Returns:
     - Dictionary with minimum and maximum and number of rows for suppression
     """
-    # min()/max() return non-json-serializable numpy.int64, etc
-    min = df[column].dropna().min().item()
-    max = df[column].dropna().max().item()
+    min = df[column].dropna().min()
+    max = df[column].dropna().max()
 
     # We want to make sure we are returning something simple for privacy's sake
-    assert isinstance(min, (int, float))
-    assert isinstance(max, (int, float))
+    assert isinstance(min, (int, float, np.nan))
+    assert isinstance(max, (int, float, np.nan))
 
     return {
         'minmax': [min, max],
@@ -483,10 +537,11 @@ def compute_local_minmax(
     }
 
 
+@strip_invalid_results
 def compute_federated_minmax(
-        local_minmax: Dict[
+        local_minmax: List[Dict[
             str, Union[Tuple[Union[int, float], Union[int, float]], int]
-        ],
+        ]],
         suppression: int = None
 ) -> Dict[str, Union[int, float]]:
     """Compute federated minimum and maximum values
@@ -504,11 +559,23 @@ def compute_federated_minmax(
         if nrows <= suppression:
             return {'min': np.nan, 'max': np.nan}
 
-    # Computing global min and max
-    local_minmax = [minmax['minmax'] for minmax in local_minmax]
+    # Computing global minimum
+    min = [
+        min['minmax'][0] for min in local_minmax
+        if not np.isnan(min['minmax'][0])
+    ]
+    min = np.min(min) if len(min) > 0 else np.nan
+
+    # Computing global maximum
+    max = [
+        max['minmax'][1] for max in local_minmax
+        if not np.isnan(max['minmax'][1])
+    ]
+    max = np.max(max) if len(max) > 0 else np.nan
+
     return {
-        'min': np.min(local_minmax),
-        'max': np.max(local_minmax)
+        'min': min,
+        'max': max
     }
 
 
