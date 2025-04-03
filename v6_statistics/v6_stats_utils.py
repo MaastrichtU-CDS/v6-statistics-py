@@ -492,13 +492,12 @@ def compute_local_minmax(
     Returns:
     - Dictionary with minimum and maximum and number of rows for suppression
     """
-    # min()/max() return non-json-serializable numpy.int64, etc
-    min = df[column].dropna().min().item()
-    max = df[column].dropna().max().item()
+    min = df[column].dropna().min()
+    max = df[column].dropna().max()
 
     # We want to make sure we are returning something simple for privacy's sake
-    assert isinstance(min, (int, float))
-    assert isinstance(max, (int, float))
+    assert isinstance(min, (int, float, np.nan))
+    assert isinstance(max, (int, float, np.nan))
 
     return {
         'minmax': [min, max],
@@ -527,11 +526,23 @@ def compute_federated_minmax(
         if nrows <= suppression:
             return {'min': np.nan, 'max': np.nan}
 
-    # Computing global min and max
-    local_minmax = [minmax['minmax'] for minmax in local_minmax]
+    # Computing global minimum
+    min = [
+        min['minmax'][0] for min in local_minmax
+        if not np.isnan(min['minmax'][0])
+    ]
+    min = np.min(min) if len(min) > 0 else np.nan
+
+    # Computing global maximum
+    max = [
+        max['minmax'][1] for max in local_minmax
+        if not np.isnan(max['minmax'][1])
+    ]
+    max = np.max(max) if len(max) > 0 else np.nan
+
     return {
-        'min': np.min(local_minmax),
-        'max': np.max(local_minmax)
+        'min': min,
+        'max': max
     }
 
 
