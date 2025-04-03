@@ -161,7 +161,7 @@ def compute_local_quantile_sampling_variance(
         quantiles.append(np.quantile(sample, q))
 
     info('Estimating local sampling variance of the quantile')
-    quantile_variance = np.var(quantiles)
+    quantile_variance = float(np.var(quantiles))
 
     return quantile_variance
 
@@ -182,7 +182,7 @@ def compute_local_quantiles(df: pd.DataFrame, column: str) -> Dict[str, float]:
     for i in range(1, 4):
         info(f'Collecting local quantile Q{i}')
         values = df[column].dropna().values
-        quantiles[f'Q{i}'] = np.quantile(values, q[i]) \
+        quantiles[f'Q{i}'] = float(np.quantile(values, q[i])) \
             if len(values) > 0 else np.nan
 
         info(f'Collecting local sampling variances of quantile Q{i}')
@@ -250,8 +250,8 @@ def compute_federated_quantiles(
         omega_i = 1./(variances_i + tau2)
         federated_quantile = np.sum(quantiles_i*omega_i)/np.sum(omega_i)
         federated_quantile_std_err = np.sqrt(1./np.sum(omega_i))
-        federated_quantiles[f'Q{i}'] = federated_quantile
-        federated_quantiles[f'Q{i}_std_err'] = federated_quantile_std_err
+        federated_quantiles[f'Q{i}'] = float(federated_quantile)
+        federated_quantiles[f'Q{i}_std_err'] = float(federated_quantile_std_err)
 
     return federated_quantiles
 
@@ -411,7 +411,7 @@ def compute_federated_mean(
         federated_mean = np.nan
 
     return {
-        'mean': federated_mean
+        'mean': float(federated_mean)
     }
 
 
