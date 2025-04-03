@@ -168,13 +168,15 @@ def compute_local_quantiles(df: pd.DataFrame, column: str) -> Dict[str, float]:
     quantiles = {}
     for i in range(1, 4):
         info(f'Collecting local quantile Q{i}')
-        quantiles[f'Q{i}'] = np.quantile(df[column].dropna().values, q[i])
+        values = df[column].dropna().values
+        quantiles[f'Q{i}'] = np.quantile(values, q[i]) \
+            if len(values) > 0 else np.nan
 
         info(f'Collecting local sampling variances of quantile Q{i}')
         # TODO: add number of iterations for bootstrapping as parameter
         quantiles[f'variance_Q{i}'] = compute_local_quantile_sampling_variance(
             df, column, q[i]
-        )
+        ) if len(values) > 0 else np.nan
     quantiles['nrows'] = compute_local_nrows(df, column, True)
     return quantiles
 
@@ -194,7 +196,10 @@ def compute_federated_quantiles(
     """
     # Applying global suppression
     if suppression:
-        nrows = np.sum([quantile['nrows'] for quantile in local_quantiles])
+        nrows = np.sum([
+            quantile['nrows'] for quantile in local_quantiles
+            if not np.isnan(quantile['nrows'])
+        ])
         if nrows <= suppression:
             return {'Q': np.nan}
 
@@ -202,8 +207,19 @@ def compute_federated_quantiles(
     federated_quantiles = {}
     for i in range(1, 4):
         info(f'Unwrapping quantiles Q{i} and their sampling variances')
-        quantiles_i = np.array([q[f'Q{i}'] for q in local_quantiles])
-        variances_i = np.array([q[f'variance_Q{i}'] for q in local_quantiles])
+        # Also removing NaN results to account for nodes that have columns
+        # with only NaN values
+        quantiles_i = np.array([
+            q[f'Q{i}'] for q in local_quantiles if not np.isnan(q[f'Q{i}'])
+        ])
+        variances_i = np.array([
+            q[f'variance_Q{i}'] for q in local_quantiles
+            if not np.isnan(q[f'variance_Q{i}'])
+        ])
+        if len(quantiles_i) != len(variances_i):
+            error(
+                'Length of lists of local quantiles and variances do not match!'
+            )
 
         info('Computing between study heterogeneity')
         # Using DerSimonian and Laird method to estimate tau2, see equation 8 in
@@ -359,7 +375,7 @@ def compute_federated_mean(
     - Federated mean (float)
     """
     # Unwrap local sums and number of rows and remove NaN results to account
-    # for nodes that had columns with only NaNs
+    # for nodes that have columns with only NaNs
     local_sums = [
         local_mean['sum'] for local_mean in local_means
         if not np.isnan(local_mean['sum'])
