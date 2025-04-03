@@ -525,11 +525,14 @@ def compute_local_minmax(
     - Dictionary with minimum and maximum and number of rows for suppression
     """
     min = df[column].dropna().min()
+    min = min.item() if not np.isnan(min) else min
+
     max = df[column].dropna().max()
+    max = max.item() if not np.isnan(max) else max
 
     # We want to make sure we are returning something simple for privacy's sake
-    assert isinstance(min, (int, float, np.nan))
-    assert isinstance(max, (int, float, np.nan))
+    assert isinstance(min, (int, float))
+    assert isinstance(max, (int, float))
 
     return {
         'minmax': [min, max],
