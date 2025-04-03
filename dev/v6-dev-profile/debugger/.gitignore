@@ -1,0 +1,2 @@
+# debugpy module will be mounted onto the algorithm container
+debugpy/

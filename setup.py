@@ -17,6 +17,8 @@ setup(
     packages=find_packages(),
     python_requires='>=3.10',
     install_requires=[
-        'vantage6-algorithm-tools==4.8.1','numpy','pandas'
+        'vantage6-algorithm-tools==4.8.1',
+        'numpy',
+        'pandas'
     ]
 )
