@@ -663,6 +663,9 @@ def get_data_config() -> Dict:
     """
     labels = _get_user_database_labels()
 
+    print(f"DEBUGGGGGGGGGG: {_get_user_database_labels()}")
+    print(f"DEBUGGGGGGGGGG: {labels}")
+
     if len(labels) != 2:
         error(
             "There should be exactly two labels: for the dataset and its config."
